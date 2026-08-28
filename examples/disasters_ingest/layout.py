@@ -15,6 +15,10 @@ Everything downstream (frame generator, GIF builder) reads coordinates from
 here, so the layout can be retuned in one place.
 """
 
+import math
+
+import overrides as ov
+
 WD = "/private/tmp/claude-502/-Users-klesinge-Downloads/44908f80-5123-4585-99a3-0a23e090fa1d/scratchpad/flowgif"
 ASSETS = WD + "/assets"              # canonical extraction target
 FRAMES = WD + "/frames"
@@ -51,13 +55,13 @@ CONTEXT_OPACITY = 0.40         # greyed-out boxes that are never animated
 
 # ------------------------------------------------------------- containers ---
 # (x, y, w, h)
-BOX_INTEGRATION = (40, 130, 550, 640)
-BOX_PORTAL = (1010, 130, 550, 640)
-BOX_EGIS = (680, 120, 240, 210)
-BOX_PROCESSING = (680, 570, 240, 210)
-BOX_STAC = (660, 350, 280, 200)
-BOX_FUNDED = (40, 800, 550, 80)
-BOX_COMMUNITY = (1010, 800, 550, 80)
+BOX_INTEGRATION = ov.rect("box.integration", (40, 130, 550, 640), "Data Integration")
+BOX_PORTAL = ov.rect("box.portal", (1010, 130, 550, 640), "Portal Content")
+BOX_EGIS = ov.rect("box.egis", (680, 96, 240, 200), "Earthdata GIS")
+BOX_PROCESSING = ov.rect("box.processing", (680, 604, 240, 200), "Data Processing")
+BOX_STAC = ov.rect("box.stac", (660, 350, 280, 200), "STAC")
+BOX_FUNDED = ov.rect("box.funded", (40, 800, 550, 80), "Funded Projects")
+BOX_COMMUNITY = ov.rect("box.community", (1010, 800, 550, 80), "Community")
 
 # Symmetry checks these satisfy:
 #   left margin  40 == right margin  1600-1560
@@ -66,34 +70,55 @@ BOX_COMMUNITY = (1010, 800, 550, 80)
 #   EGIS top 120 is 330 above centre; Processing bottom 780 is 330 below centre
 
 # ------------------------------------------------- data integration innards --
-SRC_ICON_X = 55                # icon left edge
 SRC_ICON_W = 46
-SRC_LABEL_X = 111              # label left edge
-SRC_SPOKE_X = 245              # every spoke leaves from this x, at its own cy
-HUB = (318, 450)               # where all six spokes converge
-BOX_INGEST = (338, 418, 162, 64)
+SRC_LABEL_DY = 32              # label baseline below the icon centre
+SRC_LABEL_CHARS = 15           # wrap width for a stacked label
+HUB = ov.point("hub", (318, 450), "ingest hub")
+BOX_INGEST = ov.rect("box.ingest", (338, 418, 162, 64), "VEDA Ingest UI")
 
-PLUS_C = (516, 450)            # the "+" between Ingest UI and Airflow
-AIRFLOW_C = (550, 450)         # inside the yellow box, per the source diagram
+PLUS_C = ov.point("node.plus", (516, 450), "+ glyph")
+AIRFLOW_C = ov.point("node.airflow", (550, 450), "Airflow SM2A")
 AIRFLOW_SIZE = 48
-TINA_C = (975, 450)            # mirror position, right of STAC
+TINA_C = ov.point("node.tinacms", (975, 450), "TinaCMS")
 TINA_SIZE = 58
 
-# Seven source nodes on one evenly spaced rank, centred on y=450.
-# kind: "cyl" = catalog cylinder, "bucket" = S3 bucket, "disasters" = the green one.
+# The six sources bow outward on an arc so they read as a semicircle wrapped
+# around the VEDA Ingest UI, the way the original diagram did.
+#
+# y stays on an even pitch and only x is bowed. A true circular arc would
+# compress the vertical gaps at its ends to ~70px, and an icon plus a stacked
+# two-line label needs ~86px -- so a real arc collides with itself. Bowing x
+# against an even y gives the radial look with none of the crowding.
+SRC_PITCH = ov.scalar("src.pitch", 100, "vertical pitch")
+SRC_BASE_X = ov.scalar("src.base_x", 196, "arc x at the ends")
+SRC_BOW = ov.scalar("src.bow", 92, "how far the arc bulges left")
+
 SOURCES = [
-    {"label": "GIBS Catalog",         "cy": 235, "kind": "cyl"},
-    {"label": "EGIS",                 "cy": 321, "kind": "cyl", "logo": "bJ.png"},
-    {"label": "DAAC S3 Bucket",       "cy": 407, "kind": "bucket"},
-    {"label": "External AWS Bucket",  "cy": 493, "kind": "bucket"},
-    {"label": "CSDA AWS bucket",      "cy": 579, "kind": "bucket"},
-    {"label": "External GIS Catalog", "cy": 665, "kind": "bucket"},
+    {"label": "GIBS Catalog",         "kind": "cyl"},
+    {"label": "EGIS",                 "kind": "cyl", "logo": "bJ.png"},
+    {"label": "DAAC S3 Bucket",       "kind": "bucket"},
+    {"label": "External AWS Bucket",  "kind": "bucket"},
+    {"label": "CSDA AWS bucket",      "kind": "bucket"},
+    {"label": "External GIS Catalog", "kind": "bucket"},
 ]
+
+
+def _arc_default(i):
+    """Even y, x bowed by (1 - t^2) where t is the distance from the middle."""
+    n = len(SOURCES)
+    cy = 450 + (i - (n - 1) / 2.0) * SRC_PITCH
+    t = (cy - 450) / ((n - 1) / 2.0 * SRC_PITCH)
+    return (SRC_BASE_X - SRC_BOW * (1 - t * t), cy)
+
+
+for _i, _s in enumerate(SOURCES):
+    _s["c"] = ov.point("src.%d" % _i, _arc_default(_i), _s["label"])
 
 # The Disasters AWS Bucket sits ON the hub's vertical (x = HUB[0]) rather than
 # in the source rank. That is what makes stage 4->5 a single uninterrupted
 # straight run instead of a dogleg.
-DISASTERS_C = (HUB[0], 712)
+DISASTERS_C = ov.point("node.disasters_bucket", (HUB[0], 712),
+                       "Disasters AWS Bucket")
 DISASTERS_ICON = 48
 DISASTERS_TOP = DISASTERS_C[1] - DISASTERS_ICON / 2 + 1
 DISASTERS_BOT = DISASTERS_C[1] + DISASTERS_ICON / 2 + 1
@@ -135,39 +160,50 @@ AIRFLOW_SRC_VIEWBOX = (1359.00, 1397.75, 126.75, 126.75)
 
 
 # ------------------------------------------------------------- flow paths ---
-def label_width(s, size=14.5):
+def label_width(s, size=16.5):
     """Rough Helvetica advance width -- good enough to place a line after text."""
     return len(s) * size * 0.52
 
 
 def spoke_start(idx):
-    """Each spoke leaves just past its own label, so the line grows out of the text."""
-    src = SOURCES[idx]
-    return (SRC_LABEL_X + label_width(src["label"]) + 12, src["cy"])
+    """Leave the icon's edge along the line toward the hub, so every spoke
+    radiates out of its own node rather than starting in blank space."""
+    cx, cy = SOURCES[idx]["c"]
+    dx, dy = HUB[0] - cx, HUB[1] - cy
+    d = math.hypot(dx, dy) or 1.0
+    r = SRC_ICON_W / 2 + 8
+    return (cx + dx / d * r, cy + dy / d * r)
 
 
 def spoke(idx):
-    """Polyline for source `idx` converging on the hub."""
-    return [spoke_start(idx), HUB]
+    """Polyline for source `idx` converging on the hub. Bendable."""
+    return ov.path("flow.spoke.%d" % idx, [spoke_start(idx), HUB],
+                   "spoke: " + SOURCES[idx]["label"])
 
 
 def hub_to_ingest():
-    return [HUB, (BOX_INGEST[0], 450)]
+    return ov.path("flow.hub_to_ingest", [HUB, (BOX_INGEST[0], HUB[1])],
+                   "hub -> Ingest UI")
 
 
 def ingest_to_stac():
     """Ingest UI -> through the Airflow pinwheel -> STAC's left edge."""
-    return [(BOX_INGEST[0] + BOX_INGEST[2], 450), (BOX_STAC[0], 450)]
+    return ov.path("flow.ingest_to_stac",
+                   [(BOX_INGEST[0] + BOX_INGEST[2], 450), (BOX_STAC[0], 450)],
+                   "Ingest UI -> STAC")
 
 
 def stac_return():
     """STAC -> Data Integration: the return half of the two-way link."""
-    return [(BOX_STAC[0], 486),
-            (BOX_INTEGRATION[0] + BOX_INTEGRATION[2], 486)]
+    return ov.path("flow.stac_return",
+                   [(BOX_STAC[0], 486),
+                    (BOX_INTEGRATION[0] + BOX_INTEGRATION[2], 486)],
+                   "STAC -> Data Integration")
 
 
 def push_path():
-    return [(PUSH_X, PUSH_FROM_Y), (PUSH_X, PUSH_TO_Y)]
+    return ov.path("flow.push", [(PUSH_X, PUSH_FROM_Y), (PUSH_X, PUSH_TO_Y)],
+                   "Push data")
 
 
 def disasters_riser():
@@ -178,7 +214,8 @@ def disasters_riser():
     alongside the six catalogs. The partner connection feeding *into* it is what
     gets added later.
     """
-    return [(DISASTERS_C[0], DISASTERS_TOP - 2), HUB]
+    return ov.path("flow.disasters_riser",
+                   [(DISASTERS_C[0], DISASTERS_TOP - 2), HUB], "bucket -> hub")
 
 
 def disasters_to_stac():
@@ -197,6 +234,7 @@ def occupied():
             BOX_STAC, BOX_FUNDED, BOX_COMMUNITY]
 
 
-BUBBLE_W = 380          # narrow enough to fit both the top strip and the
-                        # bottom-centre corridor between the two bottom boxes
+# Tried widest-first: a wide bubble wraps to fewer lines and fits the short
+# top strip; a narrow one is the only thing that fits the bottom corridor.
+BUBBLE_WIDTHS = (560, 460, 380)
 BUBBLE_CLEARANCE = 14   # keep this much air between a bubble and any box

@@ -19,7 +19,7 @@ import rough as R
 from style import S
 
 FPS = 15
-FONT_BUMP = 2                   # every label two points larger, for projection
+FONT_BUMP = 4                   # every label four points larger, for projection
 FADE = 7                        # frames to fade a bubble in / out
 MIN_BUBBLE_SEC = 7.0            # every caption must be readable this long
 MIN_BUBBLE_FRAMES = int(round(MIN_BUBBLE_SEC * FPS))
@@ -245,7 +245,7 @@ def context_boxes():
         out.append(S.box(px, py, 240, 215, "#ffffff", stroke="#c9ccd1", rx=2,
                          sw=1.5, opacity=o, key=("shot", px, py)))
         out.append(img(a, px + 5, py + 5, 230, 205, opacity=o,
-                       preserve="xMidYMin slice"))
+                       preserve="xMinYMin slice"))
         out.append(text(px + 120, py + 238, lab, 11.5, anchor="middle", opacity=o))
 
     # ---- Community & Engagement (bottom-right, mirrors Funded Projects)
@@ -286,10 +286,13 @@ def integration_static():
     out.append(text(x + 18, y + 30, "Data Integration", 18, weight="bold"))
 
     for i, src in enumerate(L.SOURCES):
-        cy = src["cy"]
-        cx = L.SRC_ICON_X + L.SRC_ICON_W / 2
+        cx, cy = src["c"]
         out.append(source_icon(src, cx, cy))
-        out.append(text(L.SRC_LABEL_X, cy + 4.5, src["label"], 12.5))
+        # Label stacked UNDER the icon and centred: at the bumped type size a
+        # right-hand label would run into the fan.
+        for j, line in enumerate(wrap(src["label"], L.SRC_LABEL_CHARS)):
+            out.append(text(cx, cy + L.SRC_LABEL_DY + j * 20, line, 12.5,
+                            anchor="middle"))
 
     # The Disasters AWS Bucket now sits on the hub's own vertical.
     out.append(disasters_bucket(L.DISASTERS_C[0], L.DISASTERS_C[1],
@@ -424,7 +427,7 @@ def _overlaps(a, b, pad):
                 ay + ah + pad <= by or by + bh + pad <= ay)
 
 
-def place_bubble(anchor, bw, bh):
+def place_bubble(anchor, bw, bh, strict=False):
     """
     Find the spot closest to `anchor` that collides with no container.
 
@@ -445,6 +448,8 @@ def place_bubble(anchor, bw, bh):
             d = math.hypot(gx + bw / 2 - ax, gy + bh / 2 - ay)
             if best_d is None or d < best_d:
                 best, best_d = cand, d
+    if best is None and strict:
+        return None          # caller will retry at a different width
     return best or (40, 16, bw, bh)
 
 
@@ -453,12 +458,29 @@ def bubble(stage, alpha):
         return ""
     px, py = stage["anchor"]
     fs, lh, pad = 14.5, 22, 18
-    bw = L.BUBBLE_W
-    chars = max(18, int((bw - 2 * pad) / ((fs + FONT_BUMP) * 0.52)))
-    lines = wrap(stage["bubble"], chars)
-    bh = len(lines) * lh + 26
+    boxes = L.occupied()
 
-    x, y, bw, bh = place_bubble((px, py), bw, bh)
+    # Try the widest bubble first: fewer lines means a shorter box, which is
+    # what lets it sit in the short strip above the containers. Fall back to
+    # narrower ones for the tight bottom corridor. Only if nothing places
+    # cleanly do we accept an overlap.
+    chosen = None
+    for bw in L.BUBBLE_WIDTHS:
+        chars = max(18, int((bw - 2 * pad) / ((fs + FONT_BUMP) * 0.52)))
+        lines = wrap(stage["bubble"], chars)
+        bh = len(lines) * lh + 26
+        spot = place_bubble((px, py), bw, bh, strict=True)
+        if spot:
+            chosen = (spot, lines, bw, bh)
+            break
+    if chosen is None:
+        bw = L.BUBBLE_WIDTHS[-1]
+        chars = max(18, int((bw - 2 * pad) / ((fs + FONT_BUMP) * 0.52)))
+        lines = wrap(stage["bubble"], chars)
+        bh = len(lines) * lh + 26
+        chosen = (place_bubble((px, py), bw, bh), lines, bw, bh)
+
+    (x, y, bw, bh), lines, bw, bh = chosen
 
     # A tail that spans half the canvas stops reading as "this points at that"
     # and just looks like a stray arrow -- past this distance, omit it.
@@ -483,9 +505,8 @@ def bubble(stage, alpha):
     out = [f'<g opacity="{alpha:.3f}">']
     if tail:
         out.append(f'<path d="{tail}" fill="{L.BUBBLE_BG}"/>')
-    out += [
-           S.box(x, y, bw, bh, L.BUBBLE_BG, stroke=L.BUBBLE_BG, rx=12, sw=1.5,
-                 key=("bub", x, y, bw, bh))]
+    out += [S.box(x, y, bw, bh, L.BUBBLE_BG, stroke=L.BUBBLE_BG, rx=12, sw=1.5,
+                  key=("bub", x, y, bw, bh))]
     for i, line in enumerate(lines):
         out.append(text(x + pad, y + 26 + i * lh, line, fs, fill=L.BUBBLE_FG))
     out.append("</g>")

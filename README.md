@@ -47,6 +47,7 @@ brew install librsvg ffmpeg     # rsvg-convert, ffmpeg
 | `svg` | Element emitters. String-based; frames are write-once |
 | `timeline` | `Stage` objects, flow connectors, pulses, auto-placed callouts |
 | `render` | Parallel rasterisation and GIF assembly |
+| `overrides` | Hand-tunable geometry, and the handle registry the editor reads |
 | `styles` | `FLAT` and `SKETCH` drawing backends behind one interface |
 | `rough` | Excalidraw-style sketchy geometry (a port of roughjs) |
 
@@ -84,6 +85,39 @@ render.build_gif("frames/", "out.gif", fps=15, width=1280, height=720)
 ```
 
 See `examples/disasters_ingest/` for a complete, working diagram.
+
+## Moving things by hand
+
+Coordinates that should be tweakable go through `overrides` instead of being
+hardcoded:
+
+```python
+from svg_flow_animator import overrides as ov
+ov.use("overrides.json")
+
+HUB   = ov.point("hub", (318, 450), "ingest hub")
+STAC  = ov.rect("box.stac", (660, 350, 280, 200), "STAC")
+LINK  = ov.path("flow.ingest_to_stac", [(500, 450), (660, 450)], "Ingest -> STAC")
+```
+
+Two things fall out of that one indirection. A JSON file can now nudge any of
+it without touching code — and because every request is *registered*, a
+generated editor can discover what is movable and draw a handle for it. Adding
+a new movable thing means adding one `ov.*` call; the editor picks it up for
+free.
+
+`ov.path()` is the interesting one: **inserting a vertex is how a straight
+connector becomes an angled one**, so line angles are editable without any
+special-casing.
+
+See `examples/disasters_ingest/editor.py` for a browser editor built on this —
+it renders the diagram as a backdrop, overlays draggable handles, and writes
+`overrides.json` back out. Drag to move, double-click a connector to add a bend
+point, right-click a bend point to remove it.
+
+One gotcha: `ov.path()` only registers when the function owning it is *called*,
+and connector functions normally run during frame generation. An editor must
+call them once up front or it will show no bendable lines at all.
 
 ## Hand-drawn mode
 
