@@ -58,16 +58,22 @@ def load(path=None):
     return _data
 
 
-def _register(key, kind, default, value, label):
+def _register(key, kind, default, value, label, **extra):
     HANDLES[key] = dict(kind=kind, default=default, value=value,
-                        label=label or key)
+                        label=label or key, **extra)
 
 
-def point(key, default, label=None):
-    """A draggable (x, y)."""
+def point(key, default, label=None, size_key=None):
+    """
+    A draggable (x, y).
+
+    `size_key` names a scalar handle that controls this thing's size. Tooling
+    uses it to offer a resize grip alongside the move handle, so an icon can be
+    scaled where it sits instead of by hunting for a separate numeric field.
+    """
     raw = _data.get(key)
     val = (float(raw[0]), float(raw[1])) if raw else tuple(default)
-    _register(key, "point", tuple(default), val, label)
+    _register(key, "point", tuple(default), val, label, size_key=size_key)
     return val
 
 

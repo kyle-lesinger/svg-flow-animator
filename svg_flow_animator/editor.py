@@ -1,94 +1,187 @@
-#!/usr/bin/env python3
 """
-Generate a browser-based editor for nudging the diagram's geometry by hand.
+A browser editor for whatever a project registered through `overrides`.
 
-    python3 editor.py && open editor.html
+Nothing in here knows about any particular diagram. It takes three things:
 
-It renders the current diagram as a backdrop, overlays a draggable handle on
-every coordinate `layout.py` requested through `overrides.py`, and writes the
-result back out as `overrides.json`. Rerun `build.sh` and the change is in.
+    handles    the registry `overrides` filled in (key -> kind/default/value)
+    backdrop   a callback producing the current picture to trace over
+    size       the canvas the coordinates are expressed in
 
-Nothing here is hardcoded to this diagram: the handle list is whatever
-`overrides.HANDLES` contains after importing `layout`, so a new `ov.point(...)`
-call in layout.py shows up in the editor automatically.
+and emits one self-contained HTML file. Drag a handle, download
+`overrides.json`, rebuild. A new `ov.point(...)` anywhere in a layout shows up
+in the editor on the next run without touching this module.
 
-What you can move:
-  * points  -- drag (nodes, the hub, the "+" glyph)
-  * rects   -- drag the body to move, the corner to resize (every container)
-  * paths   -- drag a vertex; double-click a segment to INSERT a vertex, which
-               is how a straight connector becomes an angled one; right-click a
-               vertex to remove it
-  * scalars -- numeric fields in the side panel (arc bow, pitch, spoke launch x)
+    from svg_flow_animator import editor, overrides as ov
+
+    ov.use("overrides.json")
+    import layout                       # importing populates ov.HANDLES
+    layout.warm_up()                    # see the gotcha below
+
+    editor.build("editor.html", (960, 540), layout.scene_svg, title="my diagram")
+
+`backdrop` is a CALLBACK rather than a picture so the backdrop is generated
+after the overrides are loaded -- which is what makes it agree with the handles
+drawn on top of it. It may return:
+
+    bytes                a PNG
+    str                  an SVG document, rasterised here with rsvg-convert
+    (bytes|str, colour)  either of those, plus the page colour behind it
+
+Pass a *dict* of them and the editor grows a switcher between named views:
+
+    editor.build(..., backdrop={"Flat": flat_svg, "Hand-drawn": sketch_svg})
+
+The geometry is shared across views, so the handles never move when you switch
+-- only the picture behind them. That is the whole point: one set of overrides
+driving several renders of the same diagram.
+
+THE GOTCHA: `ov.path()` only registers a handle when the function owning it is
+actually called, and connector functions normally run during frame generation.
+A project must call them once up front or the editor will offer no bendable
+lines at all -- which is most of what it is for.
 """
 import base64
 import json
 import os
+import shutil
 import subprocess
-import sys
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
+from . import overrides as _overrides
 
-import layout as L          # noqa: E402  -- importing populates ov.HANDLES
-import overrides as ov      # noqa: E402
-import gen_frames as G      # noqa: E402
-from style import S         # noqa: E402
+__all__ = ["build", "payload", "layer_of", "LAYER_ORDER"]
 
-SCENE_FRAME = 0             # frame 0 is the static scene, before any flow draws
+# Canvas layers, in draw order: boxes underneath, so their large hit areas
+# never sit on top of the small things they contain.
+LAYER_ORDER = ["boxes", "flows", "nodes", "labels"]
 
 
-def warm_up():
+def layer_of(key, kind, label_prefix="label."):
     """
-    Force every connector to register itself.
+    Which toggleable layer a handle belongs to.
 
-    `ov.path()` only records a handle when the function that owns it is called,
-    and the flow functions normally run during frame generation. Without this
-    the editor would offer no bendable lines at all -- which is most of what it
-    is for.
+    Driven by KIND rather than by key naming, so a project gets sensible layers
+    without having to adopt a prefix convention. The one convention honoured is
+    `label_prefix`: a point whose key starts with it is a piece of text rather
+    than a node, and gets its own colour and its own toggle. Scalars have no
+    canvas handle at all -- they are panel fields -- so they get no layer.
     """
-    for i in range(len(L.SOURCES)):
-        L.spoke(i)
-    L.hub_to_ingest()
-    L.ingest_to_stac()
-    L.disasters_riser()
-    L.disasters_to_stac()
-    L.stac_return()
-    L.push_path()
+    if kind == "rect":
+        return "boxes"
+    if kind == "path":
+        return "flows"
+    if kind == "scalar":
+        return ""
+    return "labels" if label_prefix and key.startswith(label_prefix) else "nodes"
 
 
-def render_backdrop(style):
+def payload(handles=None, label_prefix="label."):
+    """The handle registry, reduced to something JSON will accept."""
+    handles = _overrides.HANDLES if handles is None else handles
+    out = {}
+    for key, h in handles.items():
+        entry = dict(kind=h["kind"], label=h.get("label") or key,
+                     value=_jsonable(h["value"]),
+                     default=_jsonable(h["default"]),
+                     layer=layer_of(key, h["kind"], label_prefix))
+        # A point may name a scalar that controls its size; the editor turns
+        # that into a resize grip next to the move handle.
+        if h.get("size_key") in handles:
+            entry["size_key"] = h["size_key"]
+        out[key] = entry
+    return out
+
+
+def _jsonable(v):
+    if isinstance(v, (int, float)):
+        return round(float(v), 4)
+    if v and isinstance(v[0], (list, tuple)):
+        return [[round(float(a), 2), round(float(b), 2)] for a, b in v]
+    return [round(float(x), 2) for x in v]
+
+
+def _one_backdrop(source, size, background, workdir, tag):
     """
-    Render the static scene for one style and return it as base64.
+    Normalise one backdrop callback's output to {"png": base64, "bg": colour}.
 
-    Runs in a subprocess because `style.py` picks its backend once at import
-    time via a module-level singleton -- switching inside this process would
-    mean reloading gen_frames and layout, which is more fragile than just
-    paying for a second interpreter.
+    A string is an SVG document, which has to be rasterised -- and written into
+    `workdir` to do it, because librsvg resolves a relative `<image href>`
+    against the SVG's OWN directory. Rasterising via a system temp dir would
+    silently drop every sprite in the picture.
     """
-    svg_path = os.path.join(HERE, f"_scene_{style}.svg")
-    png_path = os.path.join(HERE, f"_scene_{style}.png")
-    code = (
-        "import sys; sys.path.insert(0, %r);"
-        "import gen_frames as G;"
-        "from style import S;"
-        "open(%r, 'w').write(G.frame_svg(%d));"
-        "print(S.bg)" % (HERE, svg_path, SCENE_FRAME)
-    )
-    env = dict(os.environ, FLOWGIF_STYLE=style)
-    bg = subprocess.run([sys.executable, "-c", code], env=env, check=True,
-                        capture_output=True, text=True).stdout.strip() or "white"
-    subprocess.run(["rsvg-convert", "-w", str(L.W), "-h", str(L.H),
-                    "-b", bg, "-o", png_path, svg_path], check=True)
-    with open(png_path, "rb") as fh:
-        b64 = base64.b64encode(fh.read()).decode()
-    os.remove(svg_path)
-    os.remove(png_path)
-    return b64, bg
+    data = source() if callable(source) else source
+    if isinstance(data, tuple):
+        data, background = data
+    if isinstance(data, bytes):
+        return dict(png=base64.b64encode(data).decode(), bg=background)
+    if shutil.which("rsvg-convert") is None:
+        raise RuntimeError("rsvg-convert not found (brew install librsvg)")
+
+    w, h = size
+    svg_path = os.path.join(workdir, "_editor_backdrop_%s.svg" % tag)
+    png_path = os.path.join(workdir, "_editor_backdrop_%s.png" % tag)
+    try:
+        with open(svg_path, "w") as fh:
+            fh.write(data)
+        subprocess.run(["rsvg-convert", "-w", str(int(w)), "-h", str(int(h)),
+                        "-b", background, "-o", png_path, svg_path], check=True)
+        with open(png_path, "rb") as fh:
+            return dict(png=base64.b64encode(fh.read()).decode(), bg=background)
+    finally:
+        for stale in (svg_path, png_path):
+            if os.path.exists(stale):
+                os.remove(stale)
 
 
+def build(out_path, size, backdrop, handles=None, title="layout",
+          background="#ffffff", workdir=None, label_prefix="label."):
+    """
+    Write a standalone editor HTML file. Returns its path.
+
+    out_path      where to write the HTML
+    size          (w, h) of the coordinate space the handles live in
+    backdrop      callable (or PNG bytes / SVG string), or a dict of them
+                  keyed by the name to show on the switcher
+    handles       defaults to `overrides.HANDLES`
+    title         shown in the tab and the panel header
+    background    page colour behind the backdrop, unless a callback returns
+                  its own
+    workdir       where to rasterise; defaults to out_path's directory, which
+                  is where a project's asset hrefs already resolve
+    label_prefix  key prefix that marks a handle as a text position
+    """
+    out_path = os.path.abspath(out_path)
+    workdir = workdir or os.path.dirname(out_path)
+
+    views = backdrop if isinstance(backdrop, dict) else {"view": backdrop}
+    backdrops = {name: _one_backdrop(src, size, background, workdir, str(i))
+                 for i, (name, src) in enumerate(views.items())}
+
+    hs = payload(handles, label_prefix)
+    layers = [name for name in LAYER_ORDER
+              if any(v["layer"] == name for v in hs.values())]
+
+    html = (HTML
+            .replace("__BACKDROPS__", json.dumps(backdrops))
+            .replace("__VIEWS__", json.dumps(list(views) if len(views) > 1 else []))
+            .replace("__HANDLES__", json.dumps(hs))
+            .replace("__LAYERS__", json.dumps(layers))
+            .replace("__TITLE__", str(title))
+            .replace("__W__", str(size[0]))
+            .replace("__H__", str(size[1])))
+    with open(out_path, "w") as fh:
+        fh.write(html)
+    return out_path
+
+
+# The template is a RAW string, and it has to stay one. A "\n" written in a
+# normal Python string here survives Python's own parsing as a REAL newline,
+# lands mid-way through a JS string literal, and an unterminated literal takes
+# the whole script down -- an editor that renders as a blank page with a single
+# syntax error in the console. Raw string, so the two characters reach the
+# browser as the escape the JS parser expects.
 HTML = r"""<!doctype html>
 <meta charset="utf-8">
-<title>flowgif layout editor</title>
+<title>layout editor - __TITLE__</title>
 <style>
   * { box-sizing:border-box; }
   body { margin:0; font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
@@ -103,20 +196,12 @@ HTML = r"""<!doctype html>
           display:flex; flex-direction:column; }
   aside h1 { font-size:13.5px; margin:0; padding:12px 14px; border-bottom:1px solid #333a44;
              font-weight:600; }
-  #offline { display:none; margin:10px 12px 2px; padding:10px 11px; border-radius:7px;
-             background:#4a3410; border:1px solid #8a6220; color:#f0d9a8;
-             font-size:11px; line-height:1.55; }
-  #offline.show { display:block; }
-  #offline b { color:#ffd479; }
-  #offline code { display:block; margin-top:6px; padding:5px 6px; border-radius:4px;
-                  background:#1b1f24; color:#9fe0b4; font:10.5px ui-monospace,monospace;
-                  word-break:break-all; }
-  #styles { display:flex; gap:6px; padding:11px 14px 8px; }
-  #styles button { flex:1; padding:9px 6px; font-size:12.5px; background:#333a44; }
-  #styles button.on { background:#2f6feb; }
-  #stylenote { margin:0; padding:0 14px 11px; font-size:10.5px; color:#7c8593;
-               line-height:1.45; border-bottom:1px solid #333a44; }
-  #stylenote b { color:#aab4c2; }
+  #views { display:flex; gap:6px; padding:11px 14px 8px; }
+  #views button { flex:1; padding:9px 6px; font-size:12.5px; background:#333a44; }
+  #views button.on { background:#2f6feb; }
+  #viewnote { margin:0; padding:0 14px 11px; font-size:10.5px; color:#7c8593;
+              line-height:1.45; border-bottom:1px solid #333a44; }
+  #viewnote b { color:#aab4c2; }
   #layers { display:flex; gap:4px; padding:9px 14px; border-bottom:1px solid #333a44;
             flex-wrap:wrap; }
   #layers button { flex:1; min-width:66px; padding:5px 4px; font-size:11px; border-radius:5px;
@@ -141,15 +226,6 @@ HTML = r"""<!doctype html>
   button.ghost { background:#333a44; }
   button:hover { filter:brightness(1.15); }
   button:disabled { opacity:.4; cursor:default; filter:none; }
-  #refresh { background:#18a558; }
-  #autowrap { display:flex; align-items:center; gap:7px; font-size:11.5px;
-              color:#c6cdd8; cursor:pointer; padding:1px 0 3px; }
-  #autowrap input { width:14px; height:14px; accent-color:#18a558; cursor:pointer; }
-  #srvnote.busy { color:#7fb2ff; }
-  #save { background:#8a5cf6; }
-  #srvnote { padding:1px 0 2px; }
-  #srvnote.warn { color:#e8a33d; }
-  #srvnote.ok { color:#6fcf97; }
   pre { background:#12161a; border:1px solid #333a44; border-radius:6px; padding:7px;
         margin:0; max-height:120px; overflow:auto; font:10px ui-monospace,monospace;
         color:#9fb4cc; white-space:pre-wrap; }
@@ -168,8 +244,13 @@ HTML = r"""<!doctype html>
   .dot.label { fill:#18a558; }
   .dot.vert  { fill:#ff7a00; stroke-width:1.5; }
   .dot.sel   { stroke:#ffd479; stroke-width:3.5; }
-  /* A container is grabbed by its BORDER only. Filling it would make a
-     550x640 rect swallow every click meant for the nodes inside it. */
+  /* A container is grabbed by its BORDER only.
+     `fill:transparent` reads as harmless but is not: in SVG a transparent fill
+     still RECEIVES POINTER EVENTS. A 550x640 container rect then swallows
+     every click aimed at the nodes inside it and none of them can be picked up
+     at all. `fill:none` plus a fat transparent stroke with
+     `pointer-events:stroke` gives a comfortable grab band on the border and
+     leaves the whole interior click-through. */
   .rcv  { fill:none; stroke:#2f6feb; stroke-width:1.5; stroke-dasharray:5 4;
           pointer-events:none; }
   .rcv.sel { stroke:#ffd479; stroke-width:2.5; }
@@ -183,20 +264,10 @@ HTML = r"""<!doctype html>
 </style>
 <div id="stage"><div id="wrap"><svg id="ov" viewBox="0 0 __W__ __H__"></svg></div></div>
 <aside>
-  <h1>Layout editor</h1>
-  <div id="offline">
-    <b>Live preview is off.</b>
-    You opened this file directly, so there is no renderer to talk to and
-    <b>Refresh</b> / <b>Save</b> are disabled. To turn them on:
-    <code>cd &lt;this folder&gt; &amp;&amp; python3 serve.py</code>
-    then open <b>http://localhost:8750/editor.html</b>
-  </div>
-  <div id="styles">
-    <button data-s="flat">&#9633;&nbsp; Flat</button>
-    <button data-s="sketch">&#9998;&nbsp; Hand-drawn</button>
-  </div>
-  <p id="stylenote">Geometry is shared &mdash; whichever you pick, the
-     overrides you save apply to <b>both</b> renders.</p>
+  <h1>Layout editor &middot; <span style="color:#ffd479">__TITLE__</span></h1>
+  <div id="views"></div>
+  <p id="viewnote">Geometry is shared &mdash; whichever view you pick, the
+     overrides you save apply to <b>all</b> of them.</p>
   <div id="layers"></div>
   <div id="panel"></div>
   <footer>
@@ -211,33 +282,14 @@ HTML = r"""<!doctype html>
       <b>&#8984;Z</b> undo &middot; <b>&#8984;&#8679;Z</b> redo &middot; <b>Shift-drag</b> snaps to 5px.
     </div>
     <pre id="json"></pre>
-    <label id="autowrap"><input type="checkbox" id="auto" checked>
-      Auto-refresh after every change</label>
-    <button id="refresh">&#8635;&nbsp; Refresh preview</button>
-    <button id="save">Save to project</button>
-    <div id="srvnote" class="hint"></div>
-    <button id="dl" class="ghost">Download overrides.json</button>
+    <button id="dl">Download overrides.json</button>
     <button id="copy" class="ghost">Copy to clipboard</button>
     <button id="reset" class="ghost">Reset all to defaults</button>
   </footer>
 </aside>
 <script>
-const H = __HANDLES__, W = __W__, HH = __H__;
-const BACKDROPS = __BACKDROPS__;
-let firstPaint = true;
-let currentStyle = 'flat';
-// The two styles are the same geometry drawn differently, so the handles never
-// move when you switch -- only the picture behind them.
-function setStyle(name) {
-  const b = BACKDROPS[name];
-  const wrap = document.getElementById('wrap');
-  wrap.style.backgroundImage = 'url(data:image/png;base64,' + b.png + ')';
-  wrap.style.backgroundColor = b.bg;
-  document.querySelectorAll('#styles button').forEach(x =>
-    x.classList.toggle('on', x.dataset.s === name));
-  currentStyle = name;
-  try { localStorage.setItem('flowgif.style', name); } catch (_) {}
-}
+const H = __HANDLES__, LAYERS = __LAYERS__, W = __W__, HH = __H__;
+const BACKDROPS = __BACKDROPS__, VIEWS = __VIEWS__;
 const svg = document.getElementById('ov');
 const NS = 'http://www.w3.org/2000/svg';
 const el = (n, a) => { const e = document.createElementNS(NS, n);
@@ -246,6 +298,21 @@ const clone = o => JSON.parse(JSON.stringify(o));
 
 let state = {};
 for (const k in H) state[k] = clone(H[k].value);
+
+// ---- backdrop views ------------------------------------------------------
+// Several renders of the SAME geometry. Switching swaps only the picture --
+// the handles are identical, which is what makes one overrides.json drive all
+// of them.
+function setView(name) {
+  const b = BACKDROPS[name];
+  if (!b) return;
+  const wrap = document.getElementById('wrap');
+  wrap.style.backgroundImage = 'url(data:image/png;base64,' + b.png + ')';
+  wrap.style.backgroundColor = b.bg;
+  document.querySelectorAll('#views button').forEach(x =>
+    x.classList.toggle('on', x.dataset.v === name));
+  try { localStorage.setItem('sfa.view', name); } catch (_) {}
+}
 
 // ---- undo / redo ---------------------------------------------------------
 let past = [], future = [];
@@ -266,9 +333,11 @@ addEventListener('keydown', e => {
 });
 
 // ---- layers --------------------------------------------------------------
-const layerOf = k => k.startsWith('box.') ? 'boxes' : k.startsWith('label.') ? 'labels'
-                   : k.startsWith('flow.') ? 'flows' : 'nodes';
-const vis = {boxes:true, nodes:true, labels:true, flows:true};
+// The layer is decided in Python and shipped with the handle, so the two sides
+// cannot disagree about what a given key is.
+const vis = {};
+for (const name of LAYERS) vis[name] = true;
+const shown = k => H[k].layer === '' || vis[H[k].layer];
 let sel = null;
 
 // ---- geometry helpers ----------------------------------------------------
@@ -287,8 +356,12 @@ function drag(node, key, onMove) {
                        node.removeEventListener('pointerup', up); render(); };
     node.addEventListener('pointermove', move);
     node.addEventListener('pointerup', up);
-    // Deliberately NOT render() here: it rebuilds the whole overlay and would
-    // destroy `node` mid-gesture, taking these listeners with it.
+    // Deliberately NOT render() here. Re-rendering to show the new selection
+    // rebuilds the whole overlay, which destroys `node` in the middle of the
+    // gesture and takes the two listeners just attached to it with it -- the
+    // pointermove never fires again and nothing can be dragged at all. Handles
+    // are moved IN PLACE while dragging (each `place()` below); the full
+    // re-render happens once, on release.
     markSelection();
   });
 }
@@ -296,8 +369,7 @@ function drag(node, key, onMove) {
 function markSelection() {
   document.querySelectorAll('#ov .dot, #ov .rcv').forEach(n =>
     n.classList.toggle('sel', n.dataset.k === sel));
-  document.querySelectorAll('.row').forEach(r =>
-    r.classList.toggle('sel', r.id === 'row_' + sel));
+  rows.forEach((row, k) => row.classList.toggle('sel', k === sel));
 }
 
 // ---- render --------------------------------------------------------------
@@ -306,8 +378,8 @@ function render() {
   const tags = [];
 
   // boxes first, so everything else sits on top of them
-  if (vis.boxes) for (const k in H) {
-    if (H[k].kind !== 'rect') continue;
+  for (const k in H) {
+    if (H[k].kind !== 'rect' || !shown(k)) continue;
     const v = state[k];
     const box = el('rect', {x:v[0], y:v[1], width:v[2], height:v[3], rx:6, class:'rcv'});
     box.dataset.k = k;
@@ -327,8 +399,8 @@ function render() {
   }
 
   // connectors
-  if (vis.flows) for (const k in H) {
-    if (H[k].kind !== 'path') continue;
+  for (const k in H) {
+    if (H[k].kind !== 'path' || !shown(k)) continue;
     const v = state[k];
     const segs = [], verts = [];
     const place = () => { const q = state[k];
@@ -360,25 +432,37 @@ function render() {
 
   // points last -- smallest targets on top
   for (const k in H) {
-    if (H[k].kind !== 'point') continue;
-    const lay = layerOf(k);
-    if (!vis[lay]) continue;
+    if (H[k].kind !== 'point' || !shown(k)) continue;
     const v = state[k];
     const hit = el('circle', {cx:v[0], cy:v[1], r:13, class:'hit'});
     const dot = el('circle', {cx:v[0], cy:v[1], r:6,
-      class:'dot ' + (lay === 'labels' ? 'label' : 'node')});
+      class:'dot ' + (H[k].layer === 'labels' ? 'label' : 'node')});
     dot.dataset.k = k;
-    drag(hit, k, (x, y) => { state[k] = [x, y];
-      for (const n of [hit, dot]) { n.setAttribute('cx', x); n.setAttribute('cy', y); } });
+
+    // A point that names a size scalar gets a resize grip on its corner, so an
+    // icon can be scaled where it sits instead of in a numeric field.
+    const sk = H[k].size_key;
+    const grip = sk ? el('rect', {width:11, height:11, class:'rz'}) : null;
+    const place = () => { const q = state[k];
+      for (const n of [hit, dot]) { n.setAttribute('cx', q[0]); n.setAttribute('cy', q[1]); }
+      if (grip) { const s = state[sk] / 2;
+        grip.setAttribute('x', q[0] + s - 5.5); grip.setAttribute('y', q[1] + s - 5.5); } };
+
+    drag(hit, k, (x, y) => { state[k] = [x, y]; place(); });
+    if (grip) drag(grip, sk, (x, y) => {
+      const q = state[k];
+      state[sk] = Math.max(8, Math.round(2 * Math.max(Math.abs(x - q[0]),
+                                                      Math.abs(y - q[1]))));
+      place(); });
+    place();
     svg.append(hit, dot);
+    if (grip) svg.append(grip);
     if (sel === k) tags.push([v[0] + 11, v[1] - 9, H[k].label]);
   }
 
   for (const [x, y, t] of tags) { const e = el('text', {x, y, class:'tag'});
     e.textContent = t; svg.append(e); }
   markSelection(); sync();
-  if (!firstPaint) scheduleAuto();
-  firstPaint = false;
 }
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -388,16 +472,19 @@ function payload() { const o = {};
   for (const k in H) if (!same(state[k], H[k].default)) o[k] = state[k];
   return o; }
 
+// Panel rows live in a Map keyed by the handle key. They used to be looked up
+// with getElementById('row_' + CSS.escape(k)), which never matches: an id is
+// matched LITERALLY, so the backslashes CSS.escape adds for the dots in
+// "box.stac" mean nothing is found and the panel silently stops tracking the
+// canvas for every dotted key -- which is most of them.
+const rows = new Map();
+
 function sync() {
   const p = payload();
   document.getElementById('json').textContent =
     Object.keys(p).length ? JSON.stringify(p, null, 1) : '{}   nothing changed yet';
   for (const k in H) {
-    // NOT CSS.escape(k): getElementById matches an id LITERALLY, so the
-    // backslashes CSS.escape inserts for the dots in "box.stac" mean the row
-    // is never found and the panel silently stops tracking the canvas for
-    // every dotted key -- which is nearly all of them.
-    const row = document.getElementById('row_' + k);
+    const row = rows.get(k);
     if (!row) continue;
     row.classList.toggle('on', !same(state[k], H[k].default));
     row.classList.toggle('sel', sel === k);
@@ -410,13 +497,26 @@ function sync() {
 
 // ---- side panel ----------------------------------------------------------
 function panel() {
+  const vhost = document.getElementById('views');
+  for (const name of VIEWS) {
+    const b = document.createElement('button');
+    b.textContent = name; b.dataset.v = name;
+    b.onclick = () => setView(name);
+    vhost.append(b);
+  }
+  if (!VIEWS.length) {
+    vhost.remove();
+    document.getElementById('viewnote').remove();
+  }
+
   const lay = document.getElementById('layers');
-  for (const name of ['boxes','nodes','labels','flows']) {
+  for (const name of LAYERS) {
     const b = document.createElement('button');
     b.textContent = name; b.className = 'on';
     b.onclick = () => { vis[name] = !vis[name]; b.classList.toggle('on', vis[name]); render(); };
     lay.append(b);
   }
+
   const groups = {};
   for (const k in H) (groups[k.split('.')[0]] ||= []).push(k);
   const host = document.getElementById('panel');
@@ -425,7 +525,7 @@ function panel() {
     d.innerHTML = '<h2>' + g + '</h2>';
     for (const k of groups[g]) {
       const h = H[k], row = document.createElement('div');
-      row.className = 'row'; row.id = 'row_' + k;
+      row.className = 'row'; row.dataset.k = k; rows.set(k, row);
       row.onclick = ev => { if (ev.target.tagName !== 'INPUT') { sel = k; render(); } };
       const lb = document.createElement('label'); lb.textContent = h.label; row.append(lb);
       if (h.kind === 'path') {
@@ -450,81 +550,6 @@ function panel() {
   }
 }
 
-// ---- live preview --------------------------------------------------------
-// Only reachable when served by serve.py. Opened straight off disk (file://)
-// there is no renderer to ask, so the buttons disable themselves and say why
-// rather than failing silently when clicked.
-const LIVE = location.protocol.startsWith('http');
-const note = document.getElementById('srvnote');
-function setNote(msg, cls) { note.textContent = msg; note.className = 'hint ' + (cls || ''); }
-if (!LIVE) {
-  document.getElementById('refresh').disabled = true;
-  document.getElementById('save').disabled = true;
-  document.getElementById('offline').classList.add('show');
-  setNote('', '');
-} else {
-  setNote('Refresh re-renders with your changes. Save writes overrides.json.', '');
-}
-
-async function post(path, body) {
-  const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'},
-                               body: JSON.stringify(body)});
-  const j = await r.json().catch(() => ({error:'bad response'}));
-  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
-  return j;
-}
-
-// A render round-trip takes a second or two, so changes are debounced and only
-// ONE request is ever in flight. Later edits during a render collapse into a
-// single follow-up, and a stale response is discarded by sequence number --
-// otherwise fast dragging would queue a backlog and land an out-of-date image.
-let renderSeq = 0, renderBusy = false, renderPending = false, debounceTimer = null;
-
-function scheduleAuto() {
-  if (!LIVE || !document.getElementById('auto').checked) return;
-  clearTimeout(debounceTimer);
-  setNote('change pending…', 'busy');
-  debounceTimer = setTimeout(doRender, 450);
-}
-
-async function doRender() {
-  if (renderBusy) { renderPending = true; return; }
-  renderBusy = true;
-  const seq = ++renderSeq;
-  const btn = document.getElementById('refresh');
-  btn.disabled = true; setNote('rendering…', 'busy');
-  try {
-    const j = await post('/render', {overrides: payload(), style: currentStyle});
-    if (seq === renderSeq) {                    // ignore an overtaken response
-      BACKDROPS[currentStyle] = {png: j.png, bg: j.bg};
-      setStyle(currentStyle);
-      const c = Object.keys(payload()).length;
-      setNote('preview live — ' + c + ' override' + (c === 1 ? '' : 's') + ' applied', 'ok');
-    }
-  } catch (e) {
-    if (seq === renderSeq) setNote('render failed: ' + e.message, 'warn');
-  } finally {
-    renderBusy = false; btn.disabled = false;
-    if (renderPending) { renderPending = false; doRender(); }
-  }
-}
-
-document.getElementById('refresh').onclick = doRender;
-document.getElementById('auto').onchange = e => {
-  if (e.target.checked) scheduleAuto();
-  else { clearTimeout(debounceTimer); setNote('auto-refresh off', ''); }
-};
-document.getElementById('save').onclick = async () => {
-  const b = document.getElementById('save');
-  b.disabled = true;
-  try {
-    const j = await post('/save', {overrides: payload()});
-    setNote('saved ' + j.count + ' override' + (j.count === 1 ? '' : 's') +
-            ' — now run ./build.sh', 'ok');
-  } catch (e) { setNote('save failed: ' + e.message, 'warn'); }
-  b.disabled = false;
-};
-
 document.getElementById('undo').onclick = undo;
 document.getElementById('redo').onclick = redo;
 document.getElementById('dl').onclick = () => {
@@ -539,51 +564,10 @@ document.getElementById('reset').onclick = () => { snapshot();
   for (const k in H) state[k] = clone(H[k].default); sel = null; render(); };
 svg.addEventListener('pointerdown', e => { if (e.target === svg) { sel = null; render(); } });
 
-document.querySelectorAll('#styles button').forEach(b =>
-  b.onclick = () => setStyle(b.dataset.s));
-let start = 'flat';
-try { start = localStorage.getItem('flowgif.style') || 'flat'; } catch (_) {}
-setStyle(BACKDROPS[start] ? start : 'flat');
-
-panel(); render(); buttons();
+panel();
+let first = Object.keys(BACKDROPS)[0];
+try { first = localStorage.getItem('sfa.view') || first; } catch (_) {}
+setView(BACKDROPS[first] ? first : Object.keys(BACKDROPS)[0]);
+render(); buttons();
 </script>
 """
-
-
-def main():
-    warm_up()
-    handles = {}
-    for key, h in ov.HANDLES.items():
-        handles[key] = dict(kind=h["kind"], label=h["label"],
-                            value=_jsonable(h["value"]),
-                            default=_jsonable(h["default"]))
-
-    backdrops = {}
-    for style in ("flat", "sketch"):
-        png, bg = render_backdrop(style)
-        backdrops[style] = dict(png=png, bg=bg)
-        print(f"  rendered {style} backdrop ({len(png) // 1024} KB base64)")
-
-    html = (HTML
-            .replace("__BACKDROPS__", json.dumps(backdrops))
-            .replace("__HANDLES__", json.dumps(handles))
-            .replace("__W__", str(L.W))
-            .replace("__H__", str(L.H)))
-    out = os.path.join(HERE, "editor.html")
-    with open(out, "w") as fh:
-        fh.write(html)
-    print(f"{len(handles)} movable handles, both styles -> {out}")
-    print(ov.summary())
-    return out
-
-
-def _jsonable(v):
-    if isinstance(v, (int, float)):
-        return v
-    if v and isinstance(v[0], (list, tuple)):
-        return [[round(float(a), 2), round(float(b), 2)] for a, b in v]
-    return [round(float(x), 2) for x in v]
-
-
-if __name__ == "__main__":
-    main()

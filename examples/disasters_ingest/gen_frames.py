@@ -172,14 +172,18 @@ def disasters_bucket(cx, cy, w=48, h=46):
                      fill="none", accent="#ffffff"))
 
 
-def source_icon(src, cx, cy):
+def source_icon(src, cx, cy, size=None):
+    """Size is per-node, so a mark that reads small at the shared default
+    (the EGIS globe, say) can be scaled up on its own."""
+    sz = float(size or L.SRC_ICON_W)
     if src["kind"] == "disasters":
-        return disasters_bucket(cx, cy)
+        return disasters_bucket(cx, cy, w=sz, h=sz - 2)
     if src.get("logo"):
-        return img(L.FRAME_ASSETS + "/" + src["logo"], cx - 24, cy - 24, 48, 48)
+        return img(L.FRAME_ASSETS + "/" + src["logo"],
+                   cx - sz / 2, cy - sz / 2, sz, sz)
     if src["kind"] == "cyl":
-        return cylinder(cx, cy)
-    return bucket(cx, cy)
+        return cylinder(cx, cy, w=sz, h=sz)
+    return bucket(cx, cy, w=sz, h=sz - 2)
 
 
 def airflow_group(cx, cy, size, angle=0.0):
@@ -224,13 +228,14 @@ def context_boxes():
     # ---- Data Processing (below STAC)
     x, y, w, h = L.BOX_PROCESSING
     out.append(box(x, y, w, h, L.FILL_PROCESSING, opacity=o))
-    out.append(img(L.A_JUPYTER, x + 75, y + 14, 90, 54, opacity=o))
-    for j, line in enumerate(("Disasters Hub /", "Algorithm Repo /", "User Notebooks")):
-        out.append(text(x + w / 2, y + 96 + j * 15, line, 11.5, anchor="middle", opacity=o))
-    out.append(img(L.A_GITHUB, x + 26, y + 148, 42, 42, opacity=o))
-    out.append(img(L.A_NOTEBOOK, x + w - 64, y + 150, 34, 38, opacity=o))
-    out.append(text(x + w / 2, y + h - 10, "Data Processing", 14, anchor="middle",
+    out.append(text(x + w / 2, y + 24, "Data Processing", 14, anchor="middle",
                     weight="bold", opacity=o))
+    out.append(img(L.A_JUPYTER, x + 75, y + 40, 90, 50, opacity=o))
+    for j, line in enumerate(("Disasters Hub /", "Algorithm Repo /", "User Notebooks")):
+        out.append(text(x + w / 2, y + 112 + j * 15, line, 11.5, anchor="middle", opacity=o))
+    out.append(img(L.A_GITHUB, x + 26, y + 156, 40, 40, opacity=o))
+    out.append(img(L.A_NOTEBOOK, x + w - 62, y + 157, 32, 38, opacity=o))
+
 
     # ---- Portal Content (right, mirrors Data Integration)
     x, y, w, h = L.BOX_PORTAL
@@ -258,14 +263,14 @@ def context_boxes():
              (L.A_GITHUB, "Github"), (L.A_GRAFANA, "Grafana"),
              (L.A_NEWSLETTER, "Newsletter"))
     for i, (a, lab) in enumerate(items):
-        px = x + 150 + i * 80
+        px = x + 190 + i * 70
         out.append(img(a, px + 12, y + 12, 34, 34, opacity=o))
         out.append(text(px + 29, y + 62, lab, 9.5, anchor="middle", opacity=o))
 
     # ---- TinaCMS, mirroring Airflow on the right of STAC
     out.append(img(L.A_TINA, L.TINA_C[0] - L.TINA_SIZE / 2,
                    L.TINA_C[1] - L.TINA_SIZE / 2, L.TINA_SIZE, L.TINA_SIZE, opacity=o))
-    out.append(text(L.TINA_C[0], L.TINA_C[1] + L.TINA_SIZE / 2 + 16, "TinaCMS", 11,
+    out.append(text(L.LABEL_TINA[0], L.LABEL_TINA[1], "TinaCMS", 11,
                     anchor="middle", opacity=o))
 
     # ---- muted static links from STAC out to its neighbours
@@ -283,21 +288,23 @@ def integration_static():
     out = []
     x, y, w, h = L.BOX_INTEGRATION
     out.append(box(x, y, w, h, L.FILL_INTEGRATION))
-    out.append(text(x + 18, y + 30, "Data Integration", 18, weight="bold"))
+    out.append(text(L.LABEL_TITLE_DI[0], L.LABEL_TITLE_DI[1],
+                    "Data Integration", 18, weight="bold"))
 
     for i, src in enumerate(L.SOURCES):
         cx, cy = src["c"]
-        out.append(source_icon(src, cx, cy))
+        out.append(source_icon(src, cx, cy, src["size"]))
         # Label stacked UNDER the icon and centred: at the bumped type size a
         # right-hand label would run into the fan.
+        lx, ly = src["label_c"]
         for j, line in enumerate(wrap(src["label"], L.SRC_LABEL_CHARS)):
-            out.append(text(cx, cy + L.SRC_LABEL_DY + j * 20, line, 12.5,
+            out.append(text(lx, ly + j * L.SRC_LABEL_LH, line, 12.5,
                             anchor="middle"))
 
     # The Disasters AWS Bucket now sits on the hub's own vertical.
     out.append(disasters_bucket(L.DISASTERS_C[0], L.DISASTERS_C[1],
                                 w=L.DISASTERS_ICON, h=L.DISASTERS_ICON - 2))
-    out.append(text(L.DISASTERS_C[0] + 34, L.DISASTERS_C[1] + 4.5,
+    out.append(text(L.LABEL_DISASTERS[0], L.LABEL_DISASTERS[1],
                     "Disasters AWS Bucket", 12.5))
 
     # hub dot + the short connector into the ingest box
@@ -312,7 +319,7 @@ def integration_static():
     out.append(text(L.PLUS_C[0], L.PLUS_C[1] + 9, "+", 26, anchor="middle"))
 
     # "Push data" riser annotation
-    out.append(text(L.PUSH_X + 12, 762, "Push data", 11))
+    out.append(text(L.LABEL_PUSH[0], L.LABEL_PUSH[1], "Push data", 11))
     return "\n".join(out)
 
 
@@ -344,8 +351,10 @@ def funded_static():
     x, y, w, h = L.BOX_FUNDED
     return "\n".join([
         box(x, y, w, h, L.FILL_FUNDED),
-        text(x + 18, y + 34, "Funded Projects", 15, weight="bold"),
-        text(x + 18, y + 54, "& Partners", 15, weight="bold"),
+        text(L.LABEL_TITLE_FUNDED[0], L.LABEL_TITLE_FUNDED[1],
+             "Funded Projects", 15, weight="bold"),
+        text(L.LABEL_TITLE_FUNDED[0], L.LABEL_TITLE_FUNDED[1] + 20,
+             "& Partners", 15, weight="bold"),
         # Three equal-height slots on a shared centre line (y=832), pitched
         # evenly at 113px between centres, so the marks line up optically.
         img(L.A_NASA, x + 215, y + 10, 64, 44),
@@ -358,8 +367,8 @@ def funded_static():
 def airflow_static(angle):
     return "\n".join([
         airflow_group(L.AIRFLOW_C[0], L.AIRFLOW_C[1], L.AIRFLOW_SIZE, angle),
-        text(L.AIRFLOW_C[0], L.AIRFLOW_C[1] + L.AIRFLOW_SIZE / 2 + 16,
-             "Airflow SM2A", 11, anchor="middle"),
+        text(L.LABEL_AIRFLOW[0], L.LABEL_AIRFLOW[1], "Airflow SM2A", 11,
+             anchor="middle"),
     ])
 
 

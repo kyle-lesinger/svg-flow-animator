@@ -48,6 +48,7 @@ brew install librsvg ffmpeg     # rsvg-convert, ffmpeg
 | `timeline` | `Stage` objects, flow connectors, pulses, auto-placed callouts |
 | `render` | Parallel rasterisation and GIF assembly |
 | `overrides` | Hand-tunable geometry, and the handle registry the editor reads |
+| `editor` | Generates a browser editor from that registry — for any project, not one diagram |
 | `styles` | `FLAT` and `SKETCH` drawing backends behind one interface |
 | `rough` | Excalidraw-style sketchy geometry (a port of roughjs) |
 
@@ -110,10 +111,53 @@ free.
 connector becomes an angled one**, so line angles are editable without any
 special-casing.
 
-See `examples/disasters_ingest/editor.py` for a browser editor built on this —
-it renders the diagram as a backdrop, overlays draggable handles, and writes
-`overrides.json` back out. Drag to move, double-click a connector to add a bend
-point, right-click a bend point to remove it.
+`ov.point()` can also name a scalar that controls its size, and the editor
+turns that into a resize grip on the handle rather than a numeric field to go
+hunting for:
+
+```python
+ICON   = ov.point("node.airflow", (550, 450), "Airflow", size_key="node.airflow.size")
+ICON_W = ov.scalar("node.airflow.size", 48, "Airflow size")
+```
+
+## The editor comes for free
+
+`editor.build()` reads that registry and writes one self-contained HTML file.
+It knows nothing about any particular diagram — hand it the canvas size and a
+callback that draws the current picture, and every handle the layout registered
+gets a drag target:
+
+```python
+from svg_flow_animator import editor
+
+editor.build("editor.html", (960, 540),
+             backdrop=lambda: svg.document(960, 540, static_scene(), "#fff"),
+             title="my diagram")
+```
+
+The backdrop callback returns an SVG document (rasterised for you with
+`rsvg-convert`), or PNG bytes, or a `(source, background)` pair. Pass a **dict**
+of callbacks and the editor grows a switcher between named views over the same
+handles — which is how one `overrides.json` drives both a flat and a hand-drawn
+render of the same diagram:
+
+```python
+editor.build("editor.html", (960, 540), title="my diagram", backdrop={
+    "Flat":       lambda: (scene_svg(styles.FLAT),   styles.FLAT.bg),
+    "Hand-drawn": lambda: (scene_svg(styles.SKETCH), styles.SKETCH.bg),
+})
+```
+
+Drag to move; grab a container by its dashed border; double-click a connector
+to add a bend point and right-click one to remove it; ⌘Z / ⌘⇧Z undo and redo
+200 levels; toggle whole layers off when handles overlap. Handles are grouped
+in a side panel with numeric fields, and only what differs from the defaults is
+written out.
+
+`python3 examples/minimal/demo.py --editor` builds one for the minimal example,
+which is 20 handles and no artwork at all. `examples/disasters_ingest/` has the
+full-size version, plus a `serve.py` that re-renders the real diagram live as
+you drag.
 
 One gotcha: `ov.path()` only registers when the function owning it is *called*,
 and connector functions normally run during frame generation. An editor must
@@ -176,6 +220,25 @@ costs bytes.
 track the head has not reached yet is the tell that the motion is faked.
 `timeline.flow()` sequences the two phases for you.
 
+**`fill:transparent` still eats clicks.** In SVG a transparent fill is painted,
+so it receives pointer events exactly like an opaque one. A container rect over
+a group of nodes swallows every click meant for them and nothing inside can be
+selected. `fill:none` plus a fat transparent stroke with
+`pointer-events:stroke` gives a grab band on the border and leaves the interior
+click-through — which is what the editor does for containers.
+
+**Re-rendering during `pointerdown` kills the drag.** Rebuilding an overlay to
+show the new selection destroys the element you just grabbed, and its
+`pointermove` listener goes with it — so the thing never moves and there is no
+error to explain why. Move handles in place during the gesture and re-render
+once, on release.
+
+**Keep generated JS in a raw Python string.** A `"\n"` inside a normal
+triple-quoted template survives Python's own parsing as a real newline, lands
+in the middle of a JS string literal, and the unterminated literal takes the
+whole script down — a blank page with one console error. `node --check` on the
+extracted `<script>` catches it in a second.
+
 ## Design notes
 
 **Callouts place themselves.** Hand-picking a slot per caption looks fine until
@@ -183,6 +246,14 @@ the layout moves. `geometry.place_near()` sweeps for the nearest position to the
 subject that collides with nothing, and the tail leaves from whichever edge
 actually faces it. A stage declares *what it is about*; where the bubble goes is
 derived.
+
+Give `timeline.callout()` a *sequence* of widths and it tries the widest first.
+A wider bubble wraps to fewer lines, so it is shorter, and a short bubble fits
+strips a tall one cannot — trying wide first is what lets a caption slot into
+the gap above a container instead of being shoved into a corner. Past
+`tail_max` (260px by default) the tail is dropped altogether: a pointer
+spanning half the canvas stops reading as "this describes that" and just looks
+like a stray arrow.
 
 **Extract artwork, don't screenshot it.** Design-tool exports hide real assets
 in `<defs>` as base64. `assets.extract_rasters()` gets them back byte-exact at

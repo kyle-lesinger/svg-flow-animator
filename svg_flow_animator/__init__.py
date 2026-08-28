@@ -27,8 +27,8 @@ No third-party Python packages. Requires `rsvg-convert` and `ffmpeg` on PATH.
 
 __version__ = "0.1.0"
 
-from . import (assets, geometry, overrides, render, rough, styles, svg,  # noqa: F401
-               timeline)
+from . import (assets, editor, geometry, overrides, render, rough,  # noqa: F401
+               styles, svg, timeline)
 
-__all__ = ["assets", "geometry", "overrides", "render", "rough", "styles",
-           "svg", "timeline", "__version__"]
+__all__ = ["assets", "editor", "geometry", "overrides", "render", "rough",
+           "styles", "svg", "timeline", "__version__"]

@@ -92,7 +92,8 @@ def rects_overlap(a, b, pad=0):
                 ay + ah + pad <= by or by + bh + pad <= ay)
 
 
-def place_near(anchor, size, obstacles, bounds, pad=14, step=12, margin=12):
+def place_near(anchor, size, obstacles, bounds, pad=14, step=12, margin=12,
+               strict=False):
     """
     Find the position for a `size` box closest to `anchor` that hits nothing.
 
@@ -104,6 +105,8 @@ def place_near(anchor, size, obstacles, bounds, pad=14, step=12, margin=12):
     size      (w, h) of the box to place
     obstacles iterable of (x, y, w, h) to avoid
     bounds    (w, h) of the canvas
+    strict    return None instead of overlapping, so a caller can retry at a
+              different size rather than accept a collision
     returns   (x, y, w, h), falling back to the top-left margin if nothing fits
     """
     ax, ay = anchor
@@ -118,4 +121,6 @@ def place_near(anchor, size, obstacles, bounds, pad=14, step=12, margin=12):
             d = math.hypot(gx + bw / 2 - ax, gy + bh / 2 - ay)
             if best_d is None or d < best_d:
                 best, best_d = cand, d
+    if best is None and strict:
+        return None
     return best or (margin, margin, bw, bh)

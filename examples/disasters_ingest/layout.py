@@ -16,10 +16,11 @@ here, so the layout can be retuned in one place.
 """
 
 import math
+import os
 
 import overrides as ov
 
-WD = "/private/tmp/claude-502/-Users-klesinge-Downloads/44908f80-5123-4585-99a3-0a23e090fa1d/scratchpad/flowgif"
+WD = os.path.dirname(os.path.abspath(__file__))
 ASSETS = WD + "/assets"              # canonical extraction target
 FRAMES = WD + "/frames"
 # librsvg refuses to load a resource outside the referencing document's own
@@ -67,20 +68,25 @@ BOX_COMMUNITY = ov.rect("box.community", (1010, 800, 550, 80), "Community")
 #   left margin  40 == right margin  1600-1560
 #   STAC centre  (800, 450) == canvas centre
 #   gap DI->STAC 680-590 == 90 == gap STAC->Portal 1010-920
-#   EGIS top 120 is 330 above centre; Processing bottom 780 is 330 below centre
+#   EGIS bottom 296 is 154 above centre; Processing top 604 is 154 below centre
 
 # ------------------------------------------------- data integration innards --
 SRC_ICON_W = 46
-SRC_LABEL_DY = 32              # label baseline below the icon centre
+SRC_LABEL_DY = 46              # label baseline below the icon centre.
+                               # The icon is 46 tall, so this clears its
+                               # bottom edge by 23px instead of 9.
 SRC_LABEL_CHARS = 15           # wrap width for a stacked label
+SRC_LABEL_LH = 21              # line height for a wrapped label
 HUB = ov.point("hub", (318, 450), "ingest hub")
 BOX_INGEST = ov.rect("box.ingest", (338, 418, 162, 64), "VEDA Ingest UI")
 
 PLUS_C = ov.point("node.plus", (516, 450), "+ glyph")
-AIRFLOW_C = ov.point("node.airflow", (550, 450), "Airflow SM2A")
-AIRFLOW_SIZE = 48
-TINA_C = ov.point("node.tinacms", (975, 450), "TinaCMS")
-TINA_SIZE = 58
+AIRFLOW_C = ov.point("node.airflow", (550, 450), "Airflow SM2A",
+                     size_key="node.airflow.size")
+AIRFLOW_SIZE = ov.scalar("node.airflow.size", 48, "Airflow SM2A size")
+TINA_C = ov.point("node.tinacms", (975, 450), "TinaCMS",
+                  size_key="node.tinacms.size")
+TINA_SIZE = ov.scalar("node.tinacms.size", 58, "TinaCMS size")
 
 # The six sources bow outward on an arc so they read as a semicircle wrapped
 # around the VEDA Ingest UI, the way the original diagram did.
@@ -112,14 +118,40 @@ def _arc_default(i):
 
 
 for _i, _s in enumerate(SOURCES):
-    _s["c"] = ov.point("src.%d" % _i, _arc_default(_i), _s["label"])
+    # Size first: the point declares it so the editor can offer a resize grip.
+    _s["size"] = ov.scalar("src.size.%d" % _i, SRC_ICON_W,
+                           _s["label"] + " size")
+    _s["c"] = ov.point("src.%d" % _i, _arc_default(_i), _s["label"],
+                       size_key="src.size.%d" % _i)
+    # Labels are positioned independently of their icons so a crowded one can
+    # be nudged without dragging the node (and its spokes) along with it.
+    _s["label_c"] = ov.point("label.src.%d" % _i,
+                             (_s["c"][0], _s["c"][1] + SRC_LABEL_DY),
+                             _s["label"] + " (label)")
 
 # The Disasters AWS Bucket sits ON the hub's vertical (x = HUB[0]) rather than
 # in the source rank. That is what makes stage 4->5 a single uninterrupted
 # straight run instead of a dogleg.
+DISASTERS_ICON = ov.scalar("node.disasters_bucket.size", 48,
+                           "Disasters AWS Bucket size")
 DISASTERS_C = ov.point("node.disasters_bucket", (HUB[0], 712),
-                       "Disasters AWS Bucket")
-DISASTERS_ICON = 48
+                       "Disasters AWS Bucket",
+                       size_key="node.disasters_bucket.size")
+LABEL_DISASTERS = ov.point("label.disasters", (DISASTERS_C[0] + 34,
+                                               DISASTERS_C[1] + 4.5),
+                           "Disasters AWS Bucket (label)")
+LABEL_PUSH = ov.point("label.push", (348, 762), "Push data (label)")
+LABEL_AIRFLOW = ov.point("label.airflow", (AIRFLOW_C[0], AIRFLOW_C[1] + 40),
+                         "Airflow SM2A (label)")
+LABEL_TINA = ov.point("label.tinacms", (TINA_C[0], TINA_C[1] + 45),
+                      "TinaCMS (label)")
+LABEL_TITLE_DI = ov.point("label.title.integration",
+                          (BOX_INTEGRATION[0] + 18, BOX_INTEGRATION[1] + 30),
+                          "\"Data Integration\" title")
+LABEL_TITLE_FUNDED = ov.point("label.title.funded",
+                              (BOX_FUNDED[0] + 18, BOX_FUNDED[1] + 34),
+                              "\"Funded Projects\" title")
+
 DISASTERS_TOP = DISASTERS_C[1] - DISASTERS_ICON / 2 + 1
 DISASTERS_BOT = DISASTERS_C[1] + DISASTERS_ICON / 2 + 1
 

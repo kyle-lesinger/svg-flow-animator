@@ -4,3 +4,11 @@
 assets/
 frames/
 *.gif
+
+# Generated editor: the backdrop is a base64 PNG of the whole scene, so it
+# embeds the same third-party artwork as assets/. Regenerate with editor.py.
+editor.html
+editor-*.html
+_scene_*
+_preview_*
+overrides.prev.json
