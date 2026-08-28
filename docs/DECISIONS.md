@@ -115,6 +115,31 @@ Ending in `cursive` would be a trap: on macOS it resolves to Zapfino.
 candidate layout that silently overwrote saved work would be the worst possible
 failure in an editing tool.
 
+## A section is a scope, not a crop
+
+**Reversed after building it.** Per-section viewports were implemented in full —
+a declared visual extent per section, rendered at its own aspect ratio — and
+then removed. Two reasons, and the second is the one that settles it:
+
+- A box rect is not a visual extent, so framing from it sliced labels and
+  arrowheads. Fixing that needed a second hand-maintained rectangle per section,
+  which is the kind of parallel structure the handle registry exists to avoid.
+- More importantly, a section GIF is for showing the ecosystem. Cropping to one
+  block removes the thing the diagram is *about* — that everything connects.
+
+What survives is the part that was actually doing the work: scoping which
+content **moves**. That needs no geometry at all.
+
+## Sketch is the default render
+
+It costs ~6x the SVG bytes and ~3% on the finished GIF, because the extra ink is
+identical in every frame and inter-frame compression absorbs it. At that price
+the hand-drawn look is very nearly free, and it reads as deliberate rather than
+as an unstyled default. `FLOWGIF_STYLE=flat` still gets the clean render.
+
+The filename suffix follows the *default*, not the style name, so the default
+keeps the plain filename whichever style that is.
+
 ## Guards assert on plausibility, not just exit status
 
 Several failures here produce a valid file that is quietly wrong. Where a cheap

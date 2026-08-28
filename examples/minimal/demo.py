@@ -53,9 +53,12 @@ for _i, (_label, _cy) in enumerate([("Ingest API", 140), ("Batch drop", 270),
         label=_label,
         c=_c,
         # The caption is its own handle, so a crowded label can be nudged
-        # without dragging the box (and its spoke) along with it.
-        label_c=ov.point("label.src.%d" % _i, (_c[0], _c[1] + 5),
-                         _label + " (label)"),
+        # without dragging the box (and its spoke) along with it -- but an
+        # OFFSET, not a point. Stored as a delta from the source it names, it
+        # stays attached however far the source is dragged; an absolute
+        # position detaches the first time it is nudged.
+        label_c=ov.offset("label.src.%d" % _i, (0, 5), "src.%d" % _i, _c,
+                          _label + " (label)"),
     ))
 
 LABEL_PRODUCERS = ov.point("label.producers", (58, 128), '"Producers" title')

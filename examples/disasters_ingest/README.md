@@ -1,8 +1,9 @@
 # Example: NASA Disasters ingest-flow animation
 
-Everything needed to regenerate and re-tune the animated architecture diagram.
-Self-contained: `assets/` already holds the extracted artwork, so you do not
-need the original Lucidchart export unless you want to re-extract.
+Everything needed to regenerate and re-tune the animated architecture diagram —
+**except the artwork**. `assets/` is gitignored and absent on a fresh clone, so
+nothing here runs until you rebuild it from the original export. See
+"Artwork is not included" below, and `docs/ASSETS.md` for the procedure.
 
 ## Build
 
@@ -10,6 +11,23 @@ need the original Lucidchart export unless you want to re-extract.
     FLOWGIF_STYLE=sketch ./build.sh   # -> disasters-data-flow-sketch.gif
 
 Needs `rsvg-convert` and `ffmpeg` on PATH. No Python packages.
+
+### One GIF per section
+
+    ./build.sh --list-sections        # what is buildable
+    ./build.sh --section=egis         # -> sections/egis.gif
+    ./build.sh --all-sections         # -> sections/*.gif
+
+A section is one labelled box, cropped to the output's aspect ratio and rendered
+from the **same timeline** as the full GIF, so the two can never disagree. The
+list is derived from the handle registry — adding an `ov.rect("box.*", ...)`
+makes a new section buildable with no change to `build.sh`.
+
+Exactly one GIF is kept per section; a rebuild replaces it. Size tracks how much
+motion falls inside the crop, not the zoom factor: a quiet section is ~0.25 MB
+while the most magnified one is ~6 MB. Note that `integration` and `portal` are
+550x640 boxes, which fitted to 16:9 fill almost the whole canvas — those two are
+near-copies of the full GIF rather than close-ups.
 
 ## Move things by hand
 
@@ -58,6 +76,27 @@ revert one thing; delete the file to revert everything.
 It still works for laying things out, but **Refresh** and **Save** are disabled
 — there is no renderer to talk to over `file://`, and the page says so. Use
 `./edit.sh`.
+
+## What the diagram asserts
+
+The connector directions are **claims about the real architecture**, not visual
+choices, so they are not interchangeable. Getting one backwards makes the
+diagram say something untrue.
+
+| block | main flow | minor flow |
+| --- | --- | --- |
+| Earthdata GIS | tools -> STAC | STAC -> tools |
+| Data Processing | block -> STAC | STAC -> block |
+| Portal Content | STAC -> Portal | **none — one way** |
+
+- **Main is dominant, minor is subordinate.** The minor return flow must be
+  visually lighter and must not compete with the main direction for attention.
+- **Earthdata GIS is a chain**: NOAA / FEMA / Census -> a junction -> ArcGIS
+  Desktop, ArcGIS Online, Service Workflows -> STAC. The three agency seals are
+  **sources only**; no flow from STAC may ever terminate on one. Both STAC-side
+  connectors attach to the three tools.
+- **TinaCMS is one-way.** Portal Content has no return path to STAC — that
+  integration does not exist yet. Do not add one for symmetry.
 
 ## Files
 

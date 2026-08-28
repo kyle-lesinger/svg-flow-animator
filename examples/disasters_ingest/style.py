@@ -273,9 +273,16 @@ SKETCH = SketchStyle()
 STYLES = {"flat": FLAT, "sketch": SKETCH}
 
 
+# Sketch is the DEFAULT render for this diagram. It costs ~6x the SVG bytes but
+# only ~3% on the finished GIF, because the extra ink is identical in every
+# frame and inter-frame compression absorbs it -- so the hand-drawn look is
+# very nearly free. `FLOWGIF_STYLE=flat` still gets the clean render.
+DEFAULT_STYLE = "sketch"
+
+
 def select(argv=None):
     argv = sys.argv if argv is None else argv
-    name = os.environ.get("FLOWGIF_STYLE", "flat")
+    name = os.environ.get("FLOWGIF_STYLE", DEFAULT_STYLE)
     for a in argv[1:]:
         if a.startswith("--style="):
             name = a.split("=", 1)[1]

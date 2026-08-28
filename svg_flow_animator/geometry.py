@@ -124,3 +124,47 @@ def place_near(anchor, size, obstacles, bounds, pad=14, step=12, margin=12,
     if best is None and strict:
         return None
     return best or (margin, margin, bw, bh)
+
+
+# ---------------------------------------------------------------- viewport ---
+def fit_viewbox(rect, aspect, pad=0.18, bounds=None):
+    """
+    Grow `rect` into a viewBox of the given `aspect` (width / height).
+
+    Used to render one region of a scene at the output's own aspect ratio.
+    Sections are authored at whatever shape suits the diagram -- a 550x80 strip
+    and a 240x200 block are both normal -- and cropping either one straight to
+    16:9 would letterbox it or slice it in half.
+
+    `pad` is a fraction of the rect's larger side, added on every side first, so
+    a section keeps a little of its surroundings for context.
+
+    `bounds` (x, y, w, h) clamps the result to the canvas. The view is *shifted*
+    back inside rather than shrunk, so the requested aspect always holds; if the
+    canvas itself is smaller than the fitted view, the view is clipped to it and
+    the aspect gives way -- there is nothing outside the canvas to show.
+    """
+    x, y, w, h = (float(v) for v in rect)
+    p = max(w, h) * float(pad)
+    x, y, w, h = x - p, y - p, w + 2 * p, h + 2 * p
+
+    if w / h < aspect:
+        need = h * aspect
+        x -= (need - w) / 2.0
+        w = need
+    else:
+        need = w / aspect
+        y -= (need - h) / 2.0
+        h = need
+
+    if bounds:
+        bx, by, bw, bh = (float(v) for v in bounds)
+        if w > bw:
+            x, w = bx, bw
+        else:
+            x = min(max(x, bx), bx + bw - w)
+        if h > bh:
+            y, h = by, bh
+        else:
+            y = min(max(y, by), by + bh - h)
+    return (x, y, w, h)

@@ -44,11 +44,16 @@ an example calling `editor.build(...)`.
 ## Run / verify
 
 ```bash
-python3 -c "import svg_flow_animator"                # imports clean
+python3 tests/run.py                                 # 247 tests, <1s
 python3 examples/minimal/demo.py                     # full pipeline, ~360 frames
 python3 examples/minimal/demo.py --style=sketch      # hand-drawn variant
 python3 -m compileall svg_flow_animator examples     # syntax
 ```
+
+`tests/` is stdlib `unittest` — no pytest. Tests needing `rsvg-convert`,
+`ffmpeg`, `magick`, `node` or the gitignored `assets/` **skip** rather than
+fail, so the suite is green on a bare clone. Many tests encode a specific
+`docs/GOTCHAS.md` entry and say which one when they fail.
 
 The minimal demo is the smoke test: it exercises geometry, styles, timeline and
 render end to end, and needs no artwork.
@@ -71,6 +76,23 @@ Each example also has its own `edit.sh`; the root one only dispatches. The
 disasters example additionally has `./build.sh` (`FLOWGIF_STYLE=sketch` for the
 hand-drawn GIF), and **will not run until `assets/` is rebuilt** — see
 `docs/ASSETS.md`.
+
+That build also emits one GIF per chapter, plus a still of the whole thing:
+
+```bash
+./build.sh --list-sections     # what is buildable, and what each animates
+./build.sh --section=egis      # -> sections/egis.gif
+./build.sh --all-sections
+./build.sh --poster            # -> sections/ecosystem.png, 3200x1800
+```
+
+**Sketch is the default style** here; `FLOWGIF_STYLE=flat` gets the clean
+render. The filename suffix applies to whatever is *not* the default, so
+`egis.gif` is the sketch one and `egis-flat.gif` is the other.
+
+Every section shows the **whole canvas** — it is not a crop. Sections differ by
+what MOVES (`SECTION_SCOPE`) and which frames they cover (`section_span`). See
+`docs/ARCHITECTURE.md`.
 
 ## Critical constraints
 

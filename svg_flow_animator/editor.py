@@ -87,6 +87,11 @@ def payload(handles=None, label_prefix="label."):
         # that into a resize grip next to the move handle.
         if h.get("size_key") in handles:
             entry["size_key"] = h["size_key"]
+        # An offset is a delta from another handle. Without the anchor the
+        # editor cannot resolve it to a position at all, so it would have no
+        # drag target -- the handle would silently not exist on the canvas.
+        if h.get("anchor_key") in handles:
+            entry["anchor_key"] = h["anchor_key"]
         out[key] = entry
     return out
 
@@ -266,8 +271,15 @@ HTML = r"""<!doctype html>
   .segv { stroke:#ff7a00; stroke-width:2.5; fill:none; opacity:.5; pointer-events:none; }
   .segh { stroke:#0000; stroke-width:14; fill:none; pointer-events:stroke; cursor:copy; }
   .segh:hover + .segv, .segv.hot { opacity:1; stroke-width:4; }
+  .segv.sel { stroke:#ffd479; opacity:1; stroke-width:3.5; }
   .tag  { font:10px sans-serif; fill:#1b1f24; paint-order:stroke; stroke:#fff;
           stroke-width:3px; pointer-events:none; }
+  /* The rubber band. `fill:none`, and emphatically NOT `fill:transparent`: a
+     transparent PAINT is still hit-testable, so a band stretched across the
+     canvas would sit over every handle it just selected and swallow the
+     pointer events aimed at them. Stroke only, and inert either way. */
+  .band { fill:none; stroke:#ffd479; stroke-width:1.5; stroke-dasharray:4 3;
+          pointer-events:none; }
 </style>
 <div id="stage"><div id="wrap"><svg id="ov" viewBox="0 0 __W__ __H__"></svg>
   <div id="err"></div></div></div>
@@ -285,6 +297,9 @@ HTML = r"""<!doctype html>
     </div>
     <div class="hint">
       <b>Drag</b> a dot. <b>Boxes</b> grab by their dashed border.<br>
+      <b>Drag empty canvas</b> to rubber-band a group, then drag any one of
+      them to move all of them.<br>
+      <b>Shift-click</b> adds or removes &middot; <b>Esc</b> clears.<br>
       <b>Double-click</b> an orange line to add a bend point.<br>
       <b>Right-click</b> a bend point to delete it.<br>
       <b>&#8984;Z</b> undo &middot; <b>&#8984;&#8679;Z</b> redo &middot; <b>Shift-drag</b> snaps to 5px.
@@ -357,20 +372,137 @@ addEventListener('keydown', e => {
 const vis = {};
 for (const name of LAYERS) vis[name] = true;
 const shown = k => H[k].layer === '' || vis[H[k].layer];
+
+// ---- offsets -------------------------------------------------------------
+// An "offset" handle stores a DELTA from another handle, never a position, so
+// a label stays attached to the thing it names however far that thing is
+// dragged. Everything on the canvas needs the resolved absolute point;
+// everything saved needs the delta.
+const absXY = (k, depth) => {
+  const h = H[k];
+  if (!h || h.kind !== 'offset') return state[k];
+  const d = depth || 0;
+  // A malformed registry could anchor an offset to itself. Bail rather than
+  // recurse forever -- a hung page says nothing about why.
+  if (d > 8) return state[k];
+  const a = (h.anchor_key && H[h.anchor_key]) ? absXY(h.anchor_key, d + 1) : [0, 0];
+  return [a[0] + state[k][0], a[1] + state[k][1]];
+};
+const anchorXY = k => { const a = H[k].anchor_key;
+  return (a && H[a]) ? absXY(a) : [0, 0]; };
+
+// anchor key -> the offsets riding on it, so dragging a node drags its labels
+// in real time rather than only snapping into place on release.
+const DEPS = {};
+for (const k in H) if (H[k].kind === 'offset' && H[k].anchor_key)
+  (DEPS[H[k].anchor_key] ||= []).push(k);
+
+// ---- selection -----------------------------------------------------------
+// `selSet` is every selected handle; `sel` is the primary one, whose name gets
+// drawn on the canvas. `sel` is always a member of `selSet` or null.
 let sel = null;
+const selSet = new Set();
+function selectOnly(k) { selSet.clear(); if (k) selSet.add(k); sel = k || null; }
+function selectAdd(k) { if (k) { selSet.add(k); sel = k; } }
+function clearSel() { selSet.clear(); sel = null; }
+
+// key -> the function that repositions that handle's SVG nodes in place.
+// Rebuilt by every render, because the nodes are. A group move needs to touch
+// handles other than the one under the pointer, and re-rendering to do it
+// would destroy the element the gesture is attached to.
+let PLACERS = new Map();
+function placeFrom(k, seen) {
+  seen = seen || new Set();
+  if (seen.has(k)) return;
+  seen.add(k);
+  const p = PLACERS.get(k);
+  if (p) p();
+  for (const d of (DEPS[k] || [])) placeFrom(d, seen);
+}
 
 // ---- geometry helpers ----------------------------------------------------
 function toSvg(evt) { const r = svg.getBoundingClientRect();
   return [(evt.clientX - r.left) * W / r.width, (evt.clientY - r.top) * HH / r.height]; }
 const snap = (v, e) => e.shiftKey ? Math.round(v / 5) * 5 : Math.round(v * 10) / 10;
+const snapd = (d, e) => e.shiftKey ? Math.round(d / 5) * 5 : Math.round(d * 10) / 10;
 
-function drag(node, key, onMove) {
+// ---- group move ----------------------------------------------------------
+// A copy of the selected geometry, taken once at the start of a gesture. Every
+// move re-derives from it rather than accumulating: pointer deltas that are
+// each rounded and then added drift away from the cursor.
+const baseOf = set => { const b = {};
+  for (const k of set) if (H[k] && H[k].kind !== 'scalar') b[k] = clone(state[k]);
+  return b; };
+
+function translate(base, dx, dy) {
+  // Does this handle's ABSOLUTE position shift by (dx, dy)? An offset rides
+  // its anchor, so it moves whenever the anchor moves even though nothing in
+  // its own stored value changes -- and that is true however long the chain of
+  // anchors is, and whether or not the intermediate links are selected.
+  const moves = (k, seen) => {
+    const h = H[k];
+    if (!h || h.kind === 'scalar') return false;
+    if (k in base) return true;
+    if (h.kind !== 'offset') return false;
+    seen = seen || new Set();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return moves(h.anchor_key, seen);
+  };
+  for (const k in base) {
+    const h = H[k], b = base[k];
+    if (h.kind === 'rect') state[k] = [b[0] + dx, b[1] + dy, b[2], b[3]];
+    else if (h.kind === 'path') state[k] = b.map(p => [p[0] + dx, p[1] + dy]);
+    else if (h.kind === 'offset')
+      // THE one that goes wrong quietly. Marquee a node together with the
+      // label anchored to it and the label is ALREADY carried along by the
+      // anchor; adding the delta to its own stored value as well displaces it
+      // twice, and the label drifts off its node a little more on every drag.
+      // Its delta is only touched when the anchor is standing still.
+      state[k] = moves(h.anchor_key) ? b.slice() : [b[0] + dx, b[1] + dy];
+    else state[k] = [b[0] + dx, b[1] + dy];
+  }
+  for (const k in base) placeFrom(k);
+}
+
+function drag(node, key, onMove, groupable) {
   node.addEventListener('pointerdown', e => {
     if (e.button !== 0) return;
     e.preventDefault(); e.stopPropagation();
-    snapshot(); sel = key;
+    // Resize grips are not `groupable`: they change a size, not a position,
+    // and must neither join a selection nor drag one around.
+    if (groupable) {
+      if (e.shiftKey && selSet.has(key)) {
+        // Shift toggles. Having just dropped it out of the selection there is
+        // nothing here to drag, so the gesture ends.
+        selSet.delete(key);
+        if (sel === key) sel = null;
+        markSelection(); sync(); return;
+      }
+      if (e.shiftKey) selectAdd(key);
+      else if (!selSet.has(key)) selectOnly(key);
+      else sel = key;
+    } else if (selSet.size <= 1) {
+      // A grip still takes the selection when there is no group to disturb, so
+      // its panel row highlights the way it always has. Once a group has been
+      // assembled, grazing a corner grip must not throw it away.
+      selectOnly(key);
+    }
     try { node.setPointerCapture(e.pointerId); } catch (_) {}
-    const move = ev => { const [x, y] = toSvg(ev); onMove(snap(x, ev), snap(y, ev)); sync(); };
+    const group = groupable && selSet.size > 1 && selSet.has(key);
+    const origin = toSvg(e);
+    const base = group ? baseOf(selSet) : null;
+    let took = false;
+    const move = ev => {
+      // One snapshot per gesture, taken on the first real movement. The whole
+      // group move is then a single undo step, and a shift-click that only
+      // changes the selection leaves no empty entry behind to undo.
+      if (!took) { took = true; snapshot(); }
+      const [x, y] = toSvg(ev);
+      if (group) translate(base, snapd(x - origin[0], ev), snapd(y - origin[1], ev));
+      else onMove(snap(x, ev), snap(y, ev));
+      sync();
+    };
     const up = () => { node.removeEventListener('pointermove', move);
                        node.removeEventListener('pointerup', up); render(); };
     node.addEventListener('pointermove', move);
@@ -379,22 +511,27 @@ function drag(node, key, onMove) {
     // rebuilds the whole overlay, which destroys `node` in the middle of the
     // gesture and takes the two listeners just attached to it with it -- the
     // pointermove never fires again and nothing can be dragged at all. Handles
-    // are moved IN PLACE while dragging (each `place()` below); the full
-    // re-render happens once, on release.
+    // are moved IN PLACE while dragging (`placeFrom` / each `place()` below);
+    // the full re-render happens once, on release.
     markSelection();
   });
 }
 
 function markSelection() {
-  document.querySelectorAll('#ov .dot, #ov .rcv').forEach(n =>
-    n.classList.toggle('sel', n.dataset.k === sel));
-  rows.forEach((row, k) => row.classList.toggle('sel', k === sel));
+  document.querySelectorAll('#ov .dot, #ov .rcv, #ov .segv').forEach(n =>
+    n.classList.toggle('sel', selSet.has(n.dataset.k)));
+  rows.forEach((row, k) => row.classList.toggle('sel', selSet.has(k)));
 }
 
 // ---- render --------------------------------------------------------------
 function render() {
   svg.textContent = '';
-  const tags = [];
+  const tags = [], placers = new Map();
+
+  // A handle on a hidden layer must not stay selected: a later group move
+  // would shift things that are nowhere on screen to account for themselves.
+  for (const k of Array.from(selSet)) if (!H[k] || !shown(k)) selSet.delete(k);
+  if (sel && !selSet.has(sel)) sel = null;
 
   // boxes first, so everything else sits on top of them
   for (const k in H) {
@@ -408,11 +545,12 @@ function render() {
       for (const n of [box, grab]) { n.setAttribute('x', q[0]); n.setAttribute('y', q[1]);
         n.setAttribute('width', q[2]); n.setAttribute('height', q[3]); }
       z.setAttribute('x', q[0]+q[2]-6); z.setAttribute('y', q[1]+q[3]-6); };
+    placers.set(k, place);
     drag(grab, k, (x, y) => { const w = state[k][2], h = state[k][3];
-      state[k] = [Math.round(x - w/2), Math.round(y - h/2), w, h]; place(); });
+      state[k] = [Math.round(x - w/2), Math.round(y - h/2), w, h]; placeFrom(k); }, true);
     drag(z, k, (x, y) => { const q = state[k];
       state[k] = [q[0], q[1], Math.max(40, Math.round(x - q[0])),
-                  Math.max(30, Math.round(y - q[1]))]; place(); });
+                  Math.max(30, Math.round(y - q[1]))]; place(); }, false);
     svg.append(box, grab, z);
     tags.push([v[0] + 7, v[1] + 15, H[k].label]);
   }
@@ -428,31 +566,36 @@ function render() {
         n.setAttribute('x2', q[i+1][0]); n.setAttribute('y2', q[i+1][1]); }));
       verts.forEach((pair, i) => pair.forEach(n => {
         n.setAttribute('cx', q[i][0]); n.setAttribute('cy', q[i][1]); })); };
+    placers.set(k, place);
     for (let i = 0; i < v.length - 1; i++) {
       const a = {x1:v[i][0], y1:v[i][1], x2:v[i+1][0], y2:v[i+1][1]};
       const hit = el('line', Object.assign({class:'segh'}, a));
       const vis_ = el('line', Object.assign({class:'segv'}, a));
+      // The visible segment carries the key so a selected connector lights up
+      // along its whole length, not just at its vertices.
+      vis_.dataset.k = k;
       hit.addEventListener('dblclick', ev => { const [x, y] = toSvg(ev); snapshot();
         const q = state[k];
         state[k] = q.slice(0, i+1).concat([[Math.round(x), Math.round(y)]], q.slice(i+1));
-        sel = k; render(); });
+        selectOnly(k); render(); });
       segs.push([hit, vis_]); svg.append(hit, vis_);
     }
     v.forEach((p, i) => {
       const hit = el('circle', {cx:p[0], cy:p[1], r:12, class:'hit'});
       const dot = el('circle', {cx:p[0], cy:p[1], r:5.5, class:'dot vert'});
       dot.dataset.k = k;
-      drag(hit, k, (x, y) => { state[k][i] = [x, y]; place(); });
+      drag(hit, k, (x, y) => { state[k][i] = [x, y]; place(); }, true);
       hit.addEventListener('contextmenu', ev => { ev.preventDefault();
         if (state[k].length > 2) { snapshot(); state[k].splice(i, 1); render(); } });
       verts.push([hit, dot]); svg.append(hit, dot);
     });
   }
 
-  // points last -- smallest targets on top
+  // points and offsets last -- smallest targets on top
   for (const k in H) {
-    if (H[k].kind !== 'point' || !shown(k)) continue;
-    const v = state[k];
+    const kind = H[k].kind;
+    if ((kind !== 'point' && kind !== 'offset') || !shown(k)) continue;
+    const v = absXY(k);
     const hit = el('circle', {cx:v[0], cy:v[1], r:13, class:'hit'});
     const dot = el('circle', {cx:v[0], cy:v[1], r:6,
       class:'dot ' + (H[k].layer === 'labels' ? 'label' : 'node')});
@@ -462,23 +605,33 @@ function render() {
     // icon can be scaled where it sits instead of in a numeric field.
     const sk = H[k].size_key;
     const grip = sk ? el('rect', {width:11, height:11, class:'rz'}) : null;
-    const place = () => { const q = state[k];
+    const place = () => { const q = absXY(k);
       for (const n of [hit, dot]) { n.setAttribute('cx', q[0]); n.setAttribute('cy', q[1]); }
       if (grip) { const s = state[sk] / 2;
         grip.setAttribute('x', q[0] + s - 5.5); grip.setAttribute('y', q[1] + s - 5.5); } };
+    placers.set(k, place);
 
-    drag(hit, k, (x, y) => { state[k] = [x, y]; place(); });
+    drag(hit, k, (x, y) => {
+      // An offset is stored as a delta, so a dropped absolute position has to
+      // be converted back against its anchor. Writing the position straight in
+      // would detach the label from what it names.
+      if (kind === 'offset') { const a = anchorXY(k);
+        state[k] = [Math.round((x - a[0]) * 10) / 10,
+                    Math.round((y - a[1]) * 10) / 10]; }
+      else state[k] = [x, y];
+      placeFrom(k); }, true);
     if (grip) drag(grip, sk, (x, y) => {
-      const q = state[k];
+      const q = absXY(k);
       state[sk] = Math.max(8, Math.round(2 * Math.max(Math.abs(x - q[0]),
                                                       Math.abs(y - q[1]))));
-      place(); });
+      place(); }, false);
     place();
     svg.append(hit, dot);
     if (grip) svg.append(grip);
     if (sel === k) tags.push([v[0] + 11, v[1] - 9, H[k].label]);
   }
 
+  PLACERS = placers;
   for (const [x, y, t] of tags) { const e = el('text', {x, y, class:'tag'});
     e.textContent = t; svg.append(e); }
   markSelection(); sync();
@@ -506,7 +659,7 @@ function sync() {
     const row = rows.get(k);
     if (!row) continue;
     row.classList.toggle('on', !same(state[k], H[k].default));
-    row.classList.toggle('sel', sel === k);
+    row.classList.toggle('sel', selSet.has(k));
     row.querySelectorAll('input').forEach((inp, i) => {
       if (document.activeElement !== inp)
         inp.value = H[k].kind === 'scalar' ? state[k] : flat(state[k])[i]; });
@@ -545,7 +698,8 @@ function panel() {
     for (const k of groups[g]) {
       const h = H[k], row = document.createElement('div');
       row.className = 'row'; row.dataset.k = k; rows.set(k, row);
-      row.onclick = ev => { if (ev.target.tagName !== 'INPUT') { sel = k; render(); } };
+      row.onclick = ev => { if (ev.target.tagName === 'INPUT') return;
+        ev.shiftKey ? selectAdd(k) : selectOnly(k); render(); };
       const lb = document.createElement('label'); lb.textContent = h.label; row.append(lb);
       if (h.kind === 'path') {
         const n = document.createElement('span');
@@ -580,8 +734,77 @@ document.getElementById('copy').onclick = async () => {
   const b = document.getElementById('copy'); b.textContent = 'Copied';
   setTimeout(() => b.textContent = 'Copy to clipboard', 1200); };
 document.getElementById('reset').onclick = () => { snapshot();
-  for (const k in H) state[k] = clone(H[k].default); sel = null; render(); };
-svg.addEventListener('pointerdown', e => { if (e.target === svg) { sel = null; render(); } });
+  for (const k in H) state[k] = clone(H[k].default); clearSel(); render(); };
+
+// ---- rubber band ---------------------------------------------------------
+// Drag from empty canvas to enclose a group; shift keeps whatever was already
+// selected. Scalars are excluded throughout -- they are numbers, not
+// positions, they have no canvas handle to enclose, and translating one would
+// resize a thing rather than move it.
+const inside = (p, r) => p[0] >= r[0] && p[0] <= r[2] && p[1] >= r[1] && p[1] <= r[3];
+
+function enclosed(r) {
+  const out = [];
+  for (const k in H) {
+    const h = H[k];
+    if (h.kind === 'scalar' || !shown(k)) continue;
+    if (h.kind === 'path') {
+      // A connector joins only when the WHOLE line is inside. Taking one whose
+      // far end is outside would shear the diagram: the line would translate
+      // away from the node it is still attached to.
+      if (state[k].length && state[k].every(p => inside(p, r))) out.push(k);
+    } else if (h.kind === 'rect') {
+      const v = state[k];
+      if (inside([v[0] + v[2] / 2, v[1] + v[3] / 2], r)) out.push(k);
+    } else if (inside(absXY(k), r)) out.push(k);
+  }
+  return out;
+}
+
+svg.addEventListener('pointerdown', e => {
+  // Every handle's own listener calls stopPropagation, so reaching here at all
+  // means the press landed on bare canvas.
+  if (e.button !== 0 || e.target !== svg) return;
+  e.preventDefault();
+  const keep = e.shiftKey ? new Set(selSet) : new Set();
+  const [x0, y0] = toSvg(e);
+  const band = el('rect', {class:'band', x:x0, y:y0, width:0, height:0});
+  svg.append(band);
+  try { svg.setPointerCapture(e.pointerId); } catch (_) {}
+  let moved = false;
+  const move = ev => {
+    const [x, y] = toSvg(ev);
+    if (Math.abs(x - x0) > 2 || Math.abs(y - y0) > 2) moved = true;
+    const r = [Math.min(x0, x), Math.min(y0, y), Math.max(x0, x), Math.max(y0, y)];
+    band.setAttribute('x', r[0]); band.setAttribute('y', r[1]);
+    band.setAttribute('width', r[2] - r[0]); band.setAttribute('height', r[3] - r[1]);
+    selSet.clear();
+    for (const k of keep) selSet.add(k);
+    for (const k of enclosed(r)) selSet.add(k);
+    // Class toggling only. render() here would delete the band, and the svg
+    // element the gesture is attached to keeps its listeners either way --
+    // but the band would vanish the moment the selection first changed.
+    markSelection();
+  };
+  const up = () => {
+    svg.removeEventListener('pointermove', move);
+    svg.removeEventListener('pointerup', up);
+    band.remove();
+    // A click that never moved is "clear the selection" -- or, with shift, a
+    // deliberate no-op rather than a wipe of what was being assembled.
+    if (!moved) { selSet.clear(); for (const k of keep) selSet.add(k); }
+    sel = selSet.size === 1 ? selSet.values().next().value : null;
+    render();
+  };
+  svg.addEventListener('pointermove', move);
+  svg.addEventListener('pointerup', up);
+});
+
+addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || !selSet.size) return;
+  if (['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
+  clearSel(); render();
+});
 
 panel();
 let first = Object.keys(BACKDROPS)[0];

@@ -39,7 +39,12 @@ def stage_assets(asset_dir, frame_dir, name="assets"):
         if not os.path.isfile(src):
             continue
         dst = os.path.join(dst_root, entry)
-        if not os.path.exists(dst) or os.path.getmtime(src) > os.path.getmtime(dst):
+        # Compare SIZE, not mtime. Anything that preserves timestamps -- cp -p,
+        # rsync -t, tar -x, restoring a backup, a build cache -- leaves an mtime
+        # check believing the copy is current. You replace a logo, rebuild, see
+        # the old one, and conclude your edit did not save.
+        if (not os.path.exists(dst)
+                or os.path.getsize(src) != os.path.getsize(dst)):
             shutil.copy2(src, dst)
     return dst_root
 

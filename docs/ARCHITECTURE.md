@@ -73,6 +73,66 @@ during the gesture rather than snapping on release.
 connector functions normally run during frame generation. An editor must call
 them once up front (`warm_up()`) or it will show no bendable lines at all.
 
+## Sections and chapters
+
+A **section** is one chapter of the diagram rendered as its own GIF. Every
+section shows the **whole canvas** — the point of the artefact is to showcase
+the ecosystem, so cutting a block out of the system it belongs to defeats it.
+
+Cropping to the subject was built and then removed. It cost a per-section
+viewport, a per-section aspect ratio, and eight tunable extent rectangles, and
+it still sliced labels and arrowheads that belonged to the section, because a
+box rect is not a visual extent. None of that machinery survives.
+
+Sections therefore differ along two axes, and neither is positional:
+
+| | what it controls |
+| --- | --- |
+| `SECTION_SCOPE` | which content groups **move**; everything else is frozen at its settled state, present but still |
+| `section_span()` | which **frames** the GIF covers — its own chapter, plus a lead-in and tail |
+
+Both matter. Scope without span gave a GIF that opened with 42 seconds of a
+frozen picture before its chapter began, which reads as broken. Span without
+scope showed another chapter's motion inside this one's frames.
+
+### Chapters live on the ONE timeline
+
+A chapter is a run of `Stage`s sharing a content group (`STAGE_GROUP`). They are
+appended to the same `_SPEC` as everything else, so the full render is the whole
+story and a section is a window onto part of it. Adding a chapter extends
+`TOTAL` for everyone — that is the point: the combined journey is this timeline
+played through, with scopes handing off.
+
+Out-of-scope content is **frozen, never deleted**. A hole in a diagram whose
+subject is that everything connects is worse than a still line.
+
+### Emphasis is separate from motion
+
+Two functions, and the split is load-bearing:
+
+- `emphasis(scope)` — which **blocks** draw at full strength. Always includes
+  `stac`, so each chapter's flows arrive somewhere visible rather than at a grey
+  box.
+- `flow_emphasis(scope)` — which **flows** do. No STAC exemption: exempting the
+  group wholesale left the entire hub → Airflow → STAC run bright in every
+  section, which is most of the width of the diagram.
+
+A frozen flow is still a bright amber dash pattern, and amber is the loudest
+thing on the canvas — so out-of-scope flows recede with the block they serve.
+
+### Not every box is a section
+
+`SECTION_SKIP` names boxes that are drawn but have no chapter of their own. The
+buildable list is still derived from the handle registry, so adding an
+`ov.rect("box.*")` still makes a section without touching the builder.
+
+## The poster
+
+`./build.sh --poster` renders one still of the settled diagram — nothing dimmed,
+nothing narrated — straight to PNG, skipping frames, ffmpeg and the GIF. It
+takes `frame_svg(TOTAL - 1, captions=False)`: a caption is a claim about a
+moment, and a still has no moment to be about.
+
 ## Timing
 
 An animation is a list of `Stage`s. For any frame you ask a stage for its

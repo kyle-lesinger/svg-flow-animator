@@ -134,13 +134,25 @@ def callout(stage, alpha, obstacles, bounds, width=380, bg="#12243d",
         lines = wrap(stage.text, chars)
         return lines, len(lines) * line_height + 26
 
-    spot = None
+    # Try EVERY width and keep the closest fit, rather than taking the first
+    # width that places. `place_near` already returns the nearest position for
+    # one width, but returning on the first success means the widest candidate
+    # always wins wherever only one region admits it -- and "nearest to the
+    # anchor" silently degrades into "widest that fits anywhere".
+    spot = lines = None
+    best_d = None
     for bw in widths:
-        lines, height = lay_out(bw)
-        spot = place_near((ax, ay), (bw, height), obstacles, bounds,
+        cand_lines, height = lay_out(bw)
+        cand = place_near((ax, ay), (bw, height), obstacles, bounds,
                           pad=clearance, strict=True)
-        if spot:
-            break
+        if not cand:
+            continue
+        # Centre distance, matching how place_near ranks candidates within one
+        # width. Measuring to the nearest edge instead would rank widths by a
+        # different metric than the search itself uses.
+        d = math.hypot(cand[0] + cand[2] / 2 - ax, cand[1] + cand[3] / 2 - ay)
+        if best_d is None or d < best_d:
+            spot, lines, best_d = cand, cand_lines, d
     if spot is None:
         lines, height = lay_out(widths[-1])
         spot = place_near((ax, ay), (widths[-1], height), obstacles, bounds,

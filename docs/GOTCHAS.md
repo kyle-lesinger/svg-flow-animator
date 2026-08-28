@@ -28,6 +28,11 @@ cleanup step deleted the staged copy.
   into a loud error.
 - Cleanup must delete `frames/f*.svg` and `frames/f*.png`, **not** `frames/*`,
   or it takes the staged assets with it.
+- It also rules out the obvious way to organise multi-target builds. Section
+  frames cannot go in `frames/<section>/`: the sprite hrefs are absolute paths
+  under `frames/assets/`, which is a *sibling* of that subdirectory, not below
+  it — so every logo would vanish silently. Sections build one at a time through
+  `frames/` itself, which is scratch; the GIFs are the artefacts worth keeping.
 
 ## Generating an editor does not stage sprites
 
@@ -48,6 +53,33 @@ The reported backdrop size is the tell:
 | ~490 KB | complete |
 
 Call `stage_assets()` before rendering anything that references artwork.
+
+## A section GIF that renders the whole timeline opens with dead air
+
+Scoping a section's *motion* without also trimming its *frames* produces a GIF
+whose chapter starts 42 seconds in. Frames 0..600 are byte-identical, so it
+plays as a still image and reads as "nothing is animating" — the file is
+correct and completely useless.
+
+`section_span()` covers the chapter plus a lead-in and tail. Verify by hashing
+the first output frame against one a second later, not by trusting the length.
+
+## `preserveAspectRatio="slice"` silently discards most of a wide image
+
+`slice` fills the slot and crops the overflow. A 1.92-aspect screenshot in a
+1.12 slot loses ~40% of its width, anchored wherever the alignment says — and
+it looks like a deliberately tight crop rather than a bug.
+
+Check the image's aspect against the slot's before choosing. `meet` inside a
+drawn frame reads as a framed screenshot; `slice` is for filling equal frames
+with several differently-shaped images uniformly.
+
+## A label exactly as long as the wrap width silently refuses to stack
+
+`wrap()` breaks on `len(trial) <= width`, so a 15-character label at width 15
+stays on one line while its 19-character neighbour stacks — the odd one out,
+for a reason invisible at the call site. Widths are boundaries; check labels
+that land exactly on one.
 
 ## Copying assets by mtime silently serves stale artwork
 
