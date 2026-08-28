@@ -184,7 +184,8 @@ A_NEWSLETTER = FRAME_ASSETS + "/cG.png"
 A_LISTSERV = FRAME_ASSETS + "/listserv.png"
 A_MYST = FRAME_ASSETS + "/myst.png"
 A_NOTEBOOK = FRAME_ASSETS + "/notebook.png"
-A_SHOT_HOME = FRAME_ASSETS + "/home.png"   # live capture of science-dev.data.nasa.gov/disasters
+A_SHOT_HOME = FRAME_ASSETS + "/aX.jpg"     # portal home page, recovered from the export
+                                           # like the other three shots below
 A_SHOT_STORY = FRAME_ASSETS + "/aZ.jpg"
 A_SHOT_TRAINING = FRAME_ASSETS + "/ce.jpg"
 A_SHOT_VIZ = FRAME_ASSETS + "/aY.jpg"

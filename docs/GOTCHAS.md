@@ -29,6 +29,26 @@ cleanup step deleted the staged copy.
 - Cleanup must delete `frames/f*.svg` and `frames/f*.png`, **not** `frames/*`,
   or it takes the staged assets with it.
 
+## Generating an editor does not stage sprites
+
+`frame_svg()` renders the scene, but **`stage_assets()` is what puts the sprites
+where librsvg can reach them** — and only `main()` calls it. Any other entry
+point (an editor generator, a one-off script) produces a complete-looking
+backdrop with every logo silently missing.
+
+`serve.py` catches this with `MIN_PLAUSIBLE_PNG`. The editor generator has no
+such guard, so it is the path that fails quietly.
+
+The reported backdrop size is the tell:
+
+| flat backdrop (base64) | meaning |
+| --- | --- |
+| ~140 KB | no sprites staged at all |
+| ~440 KB | staged, some assets still absent |
+| ~490 KB | complete |
+
+Call `stage_assets()` before rendering anything that references artwork.
+
 ## Copying assets by mtime silently serves stale artwork
 
 `if os.path.getmtime(src) > os.path.getmtime(dst)` looks reasonable and is
@@ -110,7 +130,13 @@ An element with a background *image* but no background *colour* is transparent
 wherever the image fails to load. On a dark page that reads as "the screen went
 black" rather than "an image is missing."
 
-Always give it an explicit ground colour.
+Always give it an explicit ground colour, **in CSS** — setting it only from the
+code that installs the image means it is never set on the path where that code
+does not run.
+
+The same applies to the install path itself: a view switcher that returns
+quietly on an unknown key leaves the canvas blank with nothing said anywhere.
+Fail loudly and name what was expected.
 
 ## `BaseHTTPRequestHandler.log_message` receives different argument types
 

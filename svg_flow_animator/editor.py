@@ -188,9 +188,16 @@ HTML = r"""<!doctype html>
          background:#1b1f24; color:#e6e9ee; display:flex; height:100vh; overflow:hidden;
          user-select:none; }
   #stage { flex:1; overflow:auto; padding:16px; }
-  #wrap { position:relative; width:__W__px; height:__H__px;
+  /* background-color is the ground under the backdrop, and it must be set in
+     CSS, not only by setView(). Without it the canvas is transparent until a
+     backdrop installs, so any failure to install one shows the dark page
+     through and reads as "the editor came up black". */
+  #wrap { position:relative; width:__W__px; height:__H__px; background-color:#fff;
           background-repeat:no-repeat; background-position:0 0;
           background-size:__W__px __H__px; box-shadow:0 2px 24px #0008; }
+  #err  { position:absolute; inset:0; display:none; place-items:center; padding:24px;
+          text-align:center; background:#fff; color:#b3261e; white-space:pre-line;
+          font:12.5px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; }
   svg { position:absolute; inset:0; width:100%; height:100%; }
   aside { width:330px; background:#22272e; border-left:1px solid #333a44;
           display:flex; flex-direction:column; }
@@ -262,7 +269,8 @@ HTML = r"""<!doctype html>
   .tag  { font:10px sans-serif; fill:#1b1f24; paint-order:stroke; stroke:#fff;
           stroke-width:3px; pointer-events:none; }
 </style>
-<div id="stage"><div id="wrap"><svg id="ov" viewBox="0 0 __W__ __H__"></svg></div></div>
+<div id="stage"><div id="wrap"><svg id="ov" viewBox="0 0 __W__ __H__"></svg>
+  <div id="err"></div></div></div>
 <aside>
   <h1>Layout editor &middot; <span style="color:#ffd479">__TITLE__</span></h1>
   <div id="views"></div>
@@ -305,7 +313,18 @@ for (const k in H) state[k] = clone(H[k].value);
 // of them.
 function setView(name) {
   const b = BACKDROPS[name];
-  if (!b) return;
+  const err = document.getElementById('err');
+  if (!b || !b.png) {
+    // Returning quietly here is how a missing backdrop used to present: an
+    // empty canvas and no explanation anywhere. Say what is wrong instead.
+    const have = Object.keys(BACKDROPS).join(', ') || '(none)';
+    const msg = 'no backdrop for view "' + name + '"\nbackdrops in this file: ' + have;
+    console.error('[editor] ' + msg.replace('\n', '  '));
+    err.textContent = msg;
+    err.style.display = 'grid';
+    return;
+  }
+  err.style.display = 'none';
   const wrap = document.getElementById('wrap');
   wrap.style.backgroundImage = 'url(data:image/png;base64,' + b.png + ')';
   wrap.style.backgroundColor = b.bg;

@@ -20,6 +20,7 @@ from file headers.
 ## Layout
 
 ```
+edit.sh                launcher; dispatches to an example's own edit.sh
 svg_flow_animator/     the reusable package
   assets.py            recover artwork from a flattened SVG export
   geometry.py          polylines, easing, collision-aware placement
@@ -32,8 +33,13 @@ svg_flow_animator/     the reusable package
   render.py            parallel rasterisation, GIF assembly
 examples/minimal/      self-contained demo, no external artwork
 examples/disasters_ingest/   the real diagram this was built for
-docs/                  ARCHITECTURE, DECISIONS, GOTCHAS
+docs/                  ARCHITECTURE, DECISIONS, GOTCHAS, ASSETS
 ```
+
+Every module in `svg_flow_animator/` is a **library module** — none is runnable.
+`python3 svg_flow_animator/editor.py` fails with `attempted relative import with
+no known parent package`; that is expected, not a bug. Editors are produced by
+an example calling `editor.build(...)`.
 
 ## Run / verify
 
@@ -50,15 +56,21 @@ render end to end, and needs no artwork.
 For generated JavaScript (the editor), **always** run `node --check` on the
 extracted `<script>` before considering it working. A template escaping bug once
 shipped a completely broken script with no Python-side error.
+`examples/minimal/edit.sh` does this on every build.
 
-In the disasters example:
+Launching an editor, from the repo root:
 
 ```bash
-./edit.sh              # launch editor (flat)
-./edit.sh sketch       # hand-drawn
-./build.sh             # -> the GIF
-FLOWGIF_STYLE=sketch ./build.sh
+./edit.sh                    # minimal demo; self-contained, needs no artwork
+./edit.sh disasters          # the disasters diagram (flat)
+./edit.sh disasters sketch   # hand-drawn
+./edit.sh disasters --stop   # stop its preview server
 ```
+
+Each example also has its own `edit.sh`; the root one only dispatches. The
+disasters example additionally has `./build.sh` (`FLOWGIF_STYLE=sketch` for the
+hand-drawn GIF), and **will not run until `assets/` is rebuilt** — see
+`docs/ASSETS.md`.
 
 ## Critical constraints
 
@@ -68,6 +80,8 @@ entry is a silent failure that shipped once. The three that recur:
 1. **librsvg only loads resources at or below the SVG's own directory**, and
    fails silently. Anything rendering an SVG that references sprites must write
    it inside the project tree, and sprites must be staged below the frame dir.
+   Staging is `stage_assets()`, and **only `main()` calls it** — any other entry
+   point renders a complete-looking scene with every logo missing.
 2. **`fill="transparent"` captures pointer events**; `fill="none"` does not.
 3. **Sketchy geometry must be seeded from shape identity with a fresh PRNG per
    shape**, or the diagram visibly boils across frames.
