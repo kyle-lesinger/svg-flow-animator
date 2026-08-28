@@ -9,6 +9,8 @@ fade in/out), then draw accordingly.
 Holds are free: consecutive identical frames collapse to almost nothing under
 the GIF's inter-frame delta, so generous pauses between beats cost little.
 """
+import math
+
 from . import svg
 from .geometry import (path_len, point_at, poly_d, smooth, place_near, wrap)
 
@@ -101,7 +103,7 @@ def pulse(cx, cy, strength, color, r=34):
 # ---------------------------------------------------------------- callouts ---
 def callout(stage, alpha, obstacles, bounds, width=380, bg="#12243d",
             fg="#ffffff", font_size=14.5, line_height=19, pad=18,
-            clearance=14):
+            clearance=14, tail_max=260):
     """
     A narration bubble, auto-placed near its stage's anchor.
 
@@ -110,18 +112,58 @@ def callout(stage, alpha, obstacles, bounds, width=380, bg="#12243d",
     from whichever edge actually faces the anchor -- a tail pinned to the bottom
     edge points into space as soon as the bubble ends up beside its subject
     rather than above it.
+
+    `width` may be a SEQUENCE of widths, which are tried widest-first. A wider
+    bubble wraps to fewer lines, so it is shorter, and a short bubble fits in
+    strips a tall one cannot -- trying wide first is what lets a caption slot
+    into the gap above a container instead of being pushed into a corner.
+    Narrower fallbacks cover the tight vertical corridors. Only if nothing
+    places cleanly at any width is an overlap accepted.
+
+    `tail_max` drops the tail once the bubble ends up further than that from
+    its subject: a pointer spanning half the canvas stops reading as "this
+    describes that" and just looks like a stray arrow.
     """
     if alpha <= 0.01 or not stage.text:
         return ""
     ax, ay = stage.anchor
-    chars = max(18, int((width - 2 * pad) / (font_size * 0.52)))
-    lines = wrap(stage.text, chars)
-    height = len(lines) * line_height + 26
+    widths = [width] if isinstance(width, (int, float)) else list(width)
 
-    x, y, w, h = place_near((ax, ay), (width, height), obstacles, bounds,
-                            pad=clearance)
+    def lay_out(bw):
+        chars = max(18, int((bw - 2 * pad) / (font_size * 0.52)))
+        lines = wrap(stage.text, chars)
+        return lines, len(lines) * line_height + 26
 
-    if ax < x:
+    # Try EVERY width and keep the closest fit, rather than taking the first
+    # width that places. `place_near` already returns the nearest position for
+    # one width, but returning on the first success means the widest candidate
+    # always wins wherever only one region admits it -- and "nearest to the
+    # anchor" silently degrades into "widest that fits anywhere".
+    spot = lines = None
+    best_d = None
+    for bw in widths:
+        cand_lines, height = lay_out(bw)
+        cand = place_near((ax, ay), (bw, height), obstacles, bounds,
+                          pad=clearance, strict=True)
+        if not cand:
+            continue
+        # Centre distance, matching how place_near ranks candidates within one
+        # width. Measuring to the nearest edge instead would rank widths by a
+        # different metric than the search itself uses.
+        d = math.hypot(cand[0] + cand[2] / 2 - ax, cand[1] + cand[3] / 2 - ay)
+        if best_d is None or d < best_d:
+            spot, lines, best_d = cand, cand_lines, d
+    if spot is None:
+        lines, height = lay_out(widths[-1])
+        spot = place_near((ax, ay), (widths[-1], height), obstacles, bounds,
+                          pad=clearance)
+    x, y, w, h = spot
+
+    near_x = max(x, min(x + w, ax))
+    near_y = max(y, min(y + h, ay))
+    if tail_max and math.hypot(ax - near_x, ay - near_y) > tail_max:
+        tail = None
+    elif ax < x:
         ty = max(y + 22, min(y + h - 22, ay))
         tail = f"M {x},{ty-12} L {x},{ty+12} L {x-16},{ty} Z"
     elif ax > x + w:
@@ -134,7 +176,9 @@ def callout(stage, alpha, obstacles, bounds, width=380, bg="#12243d",
         else:
             tail = f"M {tx-12},{y} L {tx+12},{y} L {tx},{y-16} Z"
 
-    body = [svg.path(tail, fill=bg), svg.rect(x, y, w, h, fill=bg, rx=12)]
+    body = [svg.rect(x, y, w, h, fill=bg, rx=12)]
+    if tail:
+        body.insert(0, svg.path(tail, fill=bg))
     for i, line in enumerate(lines):
         body.append(svg.text(x + pad, y + 26 + i * line_height, line,
                              font_size, fill=fg))

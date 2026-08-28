@@ -4,3 +4,19 @@
 assets/
 frames/
 *.gif
+
+# Generated editor: the backdrop is a base64 PNG of the whole scene, so it
+# embeds the same third-party artwork as assets/. Regenerate with editor.py.
+editor.html
+editor-*.html
+_scene_*
+_preview_*
+overrides.prev.json
+
+# Build products: section GIFs and the ecosystem poster. *.gif is already
+# ignored at the root, but the poster is a PNG and would sail straight in.
+sections/
+
+# The preview server's pid/log, written by edit.sh.
+.editor.log
+.editor.pid

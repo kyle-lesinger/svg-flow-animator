@@ -16,7 +16,7 @@ import struct
 import sys
 
 SRC = "/Users/klesinge/Downloads/disasters f2f - full diagram.svg"
-OUT = "/private/tmp/claude-502/-Users-klesinge-Downloads/44908f80-5123-4585-99a3-0a23e090fa1d/scratchpad/flowgif/assets"
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 
 IMG_RE = re.compile(
     r'<image[^>]*id="([A-Za-z0-9]+)"[^>]*xlink:href="data:image/(png|jpeg);base64,([^"]+)"'
