@@ -1,0 +1,6 @@
+# Extracted third-party artwork (NASA/Esri/etc. logos and site screenshots).
+# Regenerate with extract_assets.py from your own source SVG -- these are not
+# ours to redistribute.
+assets/
+frames/
+*.gif
