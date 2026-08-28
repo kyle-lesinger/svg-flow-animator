@@ -339,10 +339,13 @@ def di_stac_link():
     fwd = L.ingest_to_stac()
     ret = L.stac_return()
     gap_x0 = L.BOX_INTEGRATION[0] + L.BOX_INTEGRATION[2]
+    # poly_d, not an H command: "M x,y H x2" throws away every waypoint in
+    # between, so an edited bend would vanish from the persistent link.
+    fwd_vis = [p for p in fwd if p[0] >= gap_x0] or [fwd[-1]]
     return "\n".join([
-        f'<path d="M {gap_x0},{fwd[0][1]} H {fwd[-1][0]}" stroke="{L.FLOW}" '
+        f'<path d="{poly_d([(gap_x0, fwd[0][1])] + fwd_vis)}" stroke="{L.FLOW}" '
         f'stroke-width="3.5" fill="none" opacity="0.55" marker-end="url(#ctxArrow)"/>',
-        f'<path d="M {ret[0][0]},{ret[0][1]} H {ret[1][0]}" stroke="{L.FLOW}" '
+        f'<path d="{poly_d(ret)}" stroke="{L.FLOW}" '
         f'stroke-width="3.5" fill="none" opacity="0.55" marker-end="url(#ctxArrow)"/>',
     ])
 
@@ -473,31 +476,51 @@ def bubble(stage, alpha):
     # what lets it sit in the short strip above the containers. Fall back to
     # narrower ones for the tight bottom corridor. Only if nothing places
     # cleanly do we accept an overlap.
-    chosen = None
+    # Try EVERY width and keep the closest result, rather than accepting the
+    # first that happens to fit. Widest-first return-on-first-fit meant the
+    # 560 candidate always won (it is the only box the top strip admits), so
+    # the narrower options were unreachable and the anchor was ignored.
+    chosen, best_d = None, None
     for bw in L.BUBBLE_WIDTHS:
         chars = max(18, int((bw - 2 * pad) / ((fs + FONT_BUMP) * 0.52)))
         lines = wrap(stage["bubble"], chars)
         bh = len(lines) * lh + 26
         spot = place_bubble((px, py), bw, bh, strict=True)
-        if spot:
-            chosen = (spot, lines, bw, bh)
-            break
+        if not spot:
+            continue
+        d = math.hypot(spot[0] + bw / 2 - px, spot[1] + bh / 2 - py)
+        if best_d is None or d < best_d:
+            chosen, best_d = (spot, lines, bw, bh), d
     if chosen is None:
+        # Nothing placed cleanly at any width. Take the least-bad overlap
+        # rather than dumping the caption at (40,16), which lands it squarely
+        # on the container the stage is highlighting.
         bw = L.BUBBLE_WIDTHS[-1]
         chars = max(18, int((bw - 2 * pad) / ((fs + FONT_BUMP) * 0.52)))
         lines = wrap(stage["bubble"], chars)
         bh = len(lines) * lh + 26
         chosen = (place_bubble((px, py), bw, bh), lines, bw, bh)
-
     (x, y, bw, bh), lines, bw, bh = chosen
 
-    # A tail that spans half the canvas stops reading as "this points at that"
-    # and just looks like a stray arrow -- past this distance, omit it.
+    # A solid tail spanning half the canvas stops reading as "this points at
+    # that" and just looks like a stray arrow. But with the captions parked in
+    # the top strip, EVERY one exceeds the threshold -- so a plain cutoff left
+    # all five visually unattached to what they describe.
+    #
+    # So: a tail when the subject is close, and a thin dashed LEADER with a
+    # small ring at the subject when it is far. The leader carries the
+    # association across the canvas without pretending to be an arrow.
     TAIL_MAX = 260
     near_x = max(x, min(x + bw, px))
     near_y = max(y, min(y + bh, py))
-    if math.hypot(px - near_x, py - near_y) > TAIL_MAX:
-        tail = None
+    far = math.hypot(px - near_x, py - near_y) > TAIL_MAX
+    tail, leader = None, None
+    if far:
+        leader = (f'<path d="M {near_x:.1f},{near_y:.1f} L {px:.1f},{py:.1f}" '
+                  f'stroke="{L.BUBBLE_BG}" stroke-width="1.6" fill="none" '
+                  f'stroke-dasharray="5 5" opacity="0.55"/>'
+                  f'<circle cx="{px:.1f}" cy="{py:.1f}" r="5" fill="none" '
+                  f'stroke="{L.BUBBLE_BG}" stroke-width="2" opacity="0.75"/>')
     elif px < x:
         ty = max(y + 22, min(y + bh - 22, py))
         tail = f"M {x},{ty-12} L {x},{ty+12} L {x-16},{ty} Z"
@@ -512,6 +535,8 @@ def bubble(stage, alpha):
             tail = f"M {axx-12},{y} L {axx+12},{y} L {axx},{y-16} Z"
 
     out = [f'<g opacity="{alpha:.3f}">']
+    if leader:
+        out.append(leader)
     if tail:
         out.append(f'<path d="{tail}" fill="{L.BUBBLE_BG}"/>')
     out += [S.box(x, y, bw, bh, L.BUBBLE_BG, stroke=L.BUBBLE_BG, rx=12, sw=1.5,
@@ -580,7 +605,9 @@ def frame_svg(f):
         parts.append(halo(*L.BOX_INGEST, strength=s, rx=5))
     if 0 <= prog["airflow"] or prog["tostac"] >= 0.7:
         parts.append(halo(*L.BOX_STAC, strength=1.0))
-    if 0 <= prog["push"] < 1.3:
+    # progress is clamped to 1.0, so the old "< 1.3" bound never released.
+    # Hold the highlight through the stage and its caption, then drop it.
+    if 0 <= prog["push"] and f <= STAGES[3]["start"] + STAGES[3]["dur"] + STAGES[3]["hold"]:
         parts.append(halo(*L.BOX_FUNDED, strength=1.0))
         parts.append(node_pulse(L.DISASTERS_C[0], L.DISASTERS_C[1],
                                 strength=max(0.0, prog["push"]), r=34))
@@ -617,16 +644,38 @@ def frame_svg(f):
     return "\n".join(parts)
 
 
+def stage_assets():
+    """
+    Mirror assets/ into frames/assets/.
+
+    librsvg will not load an <image href> outside the referencing document's
+    own directory tree, so a frame in frames/ cannot reach ../assets/. This
+    copy is what makes the sprites resolvable.
+
+    Compares SIZE, not mtime. Anything that preserves timestamps -- cp -p,
+    rsync -t, tar -x, restoring a backup -- leaves an mtime check thinking the
+    copy is current, and the build then renders the OLD sprite and reports
+    success. Content is the only honest test.
+    """
+    os.makedirs(L.FRAME_ASSETS, exist_ok=True)
+    copied = 0
+    for name in os.listdir(L.ASSETS):
+        src = os.path.join(L.ASSETS, name)
+        if not os.path.isfile(src):
+            continue                      # a stray directory must not crash us
+        dst = os.path.join(L.FRAME_ASSETS, name)
+        if (not os.path.exists(dst)
+                or os.path.getsize(src) != os.path.getsize(dst)):
+            with open(src, "rb") as a, open(dst, "wb") as b:
+                b.write(a.read())
+            copied += 1
+    return copied
+
+
 def main():
     outdir = L.FRAMES
     os.makedirs(outdir, exist_ok=True)
-    # librsvg will not read a resource outside the frame's own directory tree.
-    os.makedirs(L.FRAME_ASSETS, exist_ok=True)
-    for name in os.listdir(L.ASSETS):
-        src, dst = os.path.join(L.ASSETS, name), os.path.join(L.FRAME_ASSETS, name)
-        if not os.path.exists(dst) or os.path.getmtime(src) > os.path.getmtime(dst):
-            with open(src, "rb") as a, open(dst, "wb") as b:
-                b.write(a.read())
+    stage_assets()
     for old in os.listdir(outdir):
         if old.endswith((".svg", ".png")):
             os.remove(os.path.join(outdir, old))

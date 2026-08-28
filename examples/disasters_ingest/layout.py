@@ -101,7 +101,9 @@ SRC_BOW = ov.scalar("src.bow", 92, "how far the arc bulges left")
 
 SOURCES = [
     {"label": "GIBS Catalog",         "kind": "cyl"},
-    {"label": "EGIS",                 "kind": "cyl", "logo": "bJ.png"},
+    # The globe PNG has whitespace padding baked in, so it reads smaller than
+    # the drawn icons at the same nominal size. Give it a larger default.
+    {"label": "EGIS", "kind": "cyl", "logo": "bJ.png", "size": 66},
     {"label": "DAAC S3 Bucket",       "kind": "bucket"},
     {"label": "External AWS Bucket",  "kind": "bucket"},
     {"label": "CSDA AWS bucket",      "kind": "bucket"},
@@ -119,15 +121,15 @@ def _arc_default(i):
 
 for _i, _s in enumerate(SOURCES):
     # Size first: the point declares it so the editor can offer a resize grip.
-    _s["size"] = ov.scalar("src.size.%d" % _i, SRC_ICON_W,
+    _s["size"] = ov.scalar("src.size.%d" % _i, _s.get("size", SRC_ICON_W),
                            _s["label"] + " size")
     _s["c"] = ov.point("src.%d" % _i, _arc_default(_i), _s["label"],
                        size_key="src.size.%d" % _i)
-    # Labels are positioned independently of their icons so a crowded one can
-    # be nudged without dragging the node (and its spokes) along with it.
-    _s["label_c"] = ov.point("label.src.%d" % _i,
-                             (_s["c"][0], _s["c"][1] + SRC_LABEL_DY),
-                             _s["label"] + " (label)")
+    # Stored as an OFFSET from the icon, so the label always travels with its
+    # node and what you tune is the gap, not an absolute position.
+    _s["label_c"] = ov.offset("label.src.%d" % _i, (0, SRC_LABEL_DY),
+                              "src.%d" % _i, _s["c"],
+                              _s["label"] + " (label)")
 
 # The Disasters AWS Bucket sits ON the hub's vertical (x = HUB[0]) rather than
 # in the source rank. That is what makes stage 4->5 a single uninterrupted
@@ -137,20 +139,21 @@ DISASTERS_ICON = ov.scalar("node.disasters_bucket.size", 48,
 DISASTERS_C = ov.point("node.disasters_bucket", (HUB[0], 712),
                        "Disasters AWS Bucket",
                        size_key="node.disasters_bucket.size")
-LABEL_DISASTERS = ov.point("label.disasters", (DISASTERS_C[0] + 34,
-                                               DISASTERS_C[1] + 4.5),
-                           "Disasters AWS Bucket (label)")
-LABEL_PUSH = ov.point("label.push", (348, 762), "Push data (label)")
-LABEL_AIRFLOW = ov.point("label.airflow", (AIRFLOW_C[0], AIRFLOW_C[1] + 40),
-                         "Airflow SM2A (label)")
-LABEL_TINA = ov.point("label.tinacms", (TINA_C[0], TINA_C[1] + 45),
-                      "TinaCMS (label)")
-LABEL_TITLE_DI = ov.point("label.title.integration",
-                          (BOX_INTEGRATION[0] + 18, BOX_INTEGRATION[1] + 30),
-                          "\"Data Integration\" title")
-LABEL_TITLE_FUNDED = ov.point("label.title.funded",
-                              (BOX_FUNDED[0] + 18, BOX_FUNDED[1] + 34),
-                              "\"Funded Projects\" title")
+LABEL_DISASTERS = ov.offset("label.disasters", (34, 4.5),
+                            "node.disasters_bucket", DISASTERS_C,
+                            "Disasters AWS Bucket (label)")
+LABEL_PUSH = ov.offset("label.push", (30, 50), "node.disasters_bucket",
+                       DISASTERS_C, "Push data (label)")
+LABEL_AIRFLOW = ov.offset("label.airflow", (0, 40), "node.airflow", AIRFLOW_C,
+                          "Airflow SM2A (label)")
+LABEL_TINA = ov.offset("label.tinacms", (0, 45), "node.tinacms", TINA_C,
+                       "TinaCMS (label)")
+LABEL_TITLE_DI = ov.offset("label.title.integration", (18, 30),
+                           "box.integration", BOX_INTEGRATION,
+                           "\"Data Integration\" title")
+LABEL_TITLE_FUNDED = ov.offset("label.title.funded", (18, 34),
+                               "box.funded", BOX_FUNDED,
+                               "\"Funded Projects\" title")
 
 DISASTERS_TOP = DISASTERS_C[1] - DISASTERS_ICON / 2 + 1
 DISASTERS_BOT = DISASTERS_C[1] + DISASTERS_ICON / 2 + 1
@@ -252,9 +255,12 @@ def disasters_riser():
 
 def disasters_to_stac():
     """The full second story: green bucket -> hub -> ingest -> Airflow -> STAC."""
-    return disasters_riser() + [
-        (BOX_INGEST[0], 450), (BOX_INGEST[0] + BOX_INGEST[2], 450),
-        (BOX_STAC[0], 450)]
+    # Compose from the real connectors rather than re-hardcoding their
+    # endpoints: literal coordinates here would ignore any waypoint the editor
+    # inserted, so a bent connector would animate along TWO different routes --
+    # bent in stage 3, straight in stage 5.
+    return (disasters_riser()[:-1] + hub_to_ingest()
+            + ingest_to_stac())
 
 
 # ---------------------------------------------------------------- bubbles ---

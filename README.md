@@ -193,7 +193,10 @@ stack falls back through Noteworthy and Chalkboard SE. End the stack with
 
 ## Things that will bite you
 
-These are the non-obvious ones, all handled by the library but worth knowing.
+A few of the non-obvious ones, all handled by the library. The full catalogue is
+**[docs/GOTCHAS.md](docs/GOTCHAS.md)** — every entry there is a silent failure
+that shipped once, and they share a shape: the code runs, exits zero, and
+produces a plausible-looking wrong result.
 
 **librsvg will not load images outside the document's own directory.** A frame
 in `frames/` cannot reference `../assets/logo.png`. It fails *silently* — the
@@ -264,6 +267,13 @@ be rotated.
 **ffmpeg over ImageMagick for the GIF.** `palettegen` with `stats_mode=diff`
 weights the palette toward pixels that actually change between frames — for a
 mostly-static diagram that spends the colour budget where it shows.
+
+## Docs
+
+- **[docs/GOTCHAS.md](docs/GOTCHAS.md)** — silent failures, ranked by what they cost
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — module map, the handle registry, timing, placement
+- [docs/DECISIONS.md](docs/DECISIONS.md) — why things are the way they are, including measurements that contradicted the hypothesis
+- [CLAUDE.md](CLAUDE.md) / [.clinerules.md](.clinerules.md) — guidance for AI assistants
 
 ## License
 

@@ -80,6 +80,23 @@ def point(key, default, label=None, size_key=None):
     return val
 
 
+def offset(key, default, anchor_key, anchor_value, label=None):
+    """
+    A point stored RELATIVE to another handle, and resolved against it.
+
+    Labels belong to the thing they name. Storing them absolutely meant a label
+    tracked its node only until you nudged it once -- after that the override
+    pinned it and it stopped following. Storing the delta means it is always
+    attached, and what you adjust is the relationship, not the position.
+
+    Returns the resolved absolute point; what gets saved is the delta.
+    """
+    raw = _data.get(key)
+    val = (float(raw[0]), float(raw[1])) if raw else tuple(default)
+    _register(key, "offset", tuple(default), val, label, anchor_key=anchor_key)
+    return (anchor_value[0] + val[0], anchor_value[1] + val[1])
+
+
 def rect(key, default, label=None):
     """A movable/resizable (x, y, w, h)."""
     raw = _data.get(key)

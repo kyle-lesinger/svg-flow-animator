@@ -96,6 +96,10 @@ HTML = r"""<!doctype html>
          user-select:none; }
   #stage { flex:1; overflow:auto; padding:16px; }
   #wrap { position:relative; width:__W__px; height:__H__px;
+          /* an explicit ground: without it, a backdrop that fails to load
+             leaves the wrap transparent and the dark page shows through,
+             which reads as "the screen went black" */
+          background-color:#fff;
           background-repeat:no-repeat; background-position:0 0;
           background-size:__W__px __H__px; box-shadow:0 2px 24px #0008; }
   svg { position:absolute; inset:0; width:100%; height:100%; }
@@ -188,7 +192,7 @@ HTML = r"""<!doctype html>
     <b>Live preview is off.</b>
     You opened this file directly, so there is no renderer to talk to and
     <b>Refresh</b> / <b>Save</b> are disabled. To turn them on:
-    <code>cd &lt;this folder&gt; &amp;&amp; python3 serve.py</code>
+    <code>cd ~/Downloads/disasters-flowgif &amp;&amp; python3 serve.py</code>
     then open <b>http://localhost:8750/editor.html</b>
   </div>
   <div id="styles">
@@ -230,6 +234,10 @@ let currentStyle = 'flat';
 // move when you switch -- only the picture behind them.
 function setStyle(name) {
   const b = BACKDROPS[name];
+  if (!b || !b.png) {           // refuse to blank the canvas
+    setNote && setNote('no backdrop for "' + name + '" — keeping the current one', 'warn');
+    return;
+  }
   const wrap = document.getElementById('wrap');
   wrap.style.backgroundImage = 'url(data:image/png;base64,' + b.png + ')';
   wrap.style.backgroundColor = b.bg;
@@ -268,6 +276,21 @@ addEventListener('keydown', e => {
 // ---- layers --------------------------------------------------------------
 const layerOf = k => k.startsWith('box.') ? 'boxes' : k.startsWith('label.') ? 'labels'
                    : k.startsWith('flow.') ? 'flows' : 'nodes';
+
+// An "offset" handle is stored as a delta from another handle, so a label
+// always travels with the thing it names. These resolve it for drawing, and
+// convert a dropped position back into a delta.
+const anchorXY = k => { const a = state[H[k].anchor_key]; return [a[0], a[1]]; };
+const absXY = k => {
+  if (H[k].kind !== 'offset') return state[k];
+  const a = anchorXY(k);
+  return [a[0] + state[k][0], a[1] + state[k][1]];
+};
+// anchor key -> the offset handles riding on it, so dragging a node drags its
+// label along in real time rather than only snapping on release.
+const DEPS = {};
+for (const k in H) if (H[k].kind === 'offset')
+  (DEPS[H[k].anchor_key] ||= []).push(k);
 const vis = {boxes:true, nodes:true, labels:true, flows:true};
 let sel = null;
 
@@ -293,11 +316,22 @@ function drag(node, key, onMove) {
   });
 }
 
+let RENDER_DOTS = {};
+
+// keep a node's dependent labels glued to it mid-drag
+function moveDeps(k, dots) {
+  for (const dk of (DEPS[k] || [])) {
+    const nodes = (dots || RENDER_DOTS)[dk];
+    if (!nodes) continue;
+    const p = absXY(dk);
+    for (const n of nodes) { n.setAttribute('cx', p[0]); n.setAttribute('cy', p[1]); }
+  }
+}
+
 function markSelection() {
   document.querySelectorAll('#ov .dot, #ov .rcv').forEach(n =>
     n.classList.toggle('sel', n.dataset.k === sel));
-  document.querySelectorAll('.row').forEach(r =>
-    r.classList.toggle('sel', r.id === 'row_' + sel));
+  ROWS.forEach((row, k) => row.classList.toggle('sel', k === sel));
 }
 
 // ---- render --------------------------------------------------------------
@@ -318,7 +352,7 @@ function render() {
         n.setAttribute('width', q[2]); n.setAttribute('height', q[3]); }
       z.setAttribute('x', q[0]+q[2]-6); z.setAttribute('y', q[1]+q[3]-6); };
     drag(grab, k, (x, y) => { const w = state[k][2], h = state[k][3];
-      state[k] = [Math.round(x - w/2), Math.round(y - h/2), w, h]; place(); });
+      state[k] = [Math.round(x - w/2), Math.round(y - h/2), w, h]; place(); moveDeps(k); });
     drag(z, k, (x, y) => { const q = state[k];
       state[k] = [q[0], q[1], Math.max(40, Math.round(x - q[0])),
                   Math.max(30, Math.round(y - q[1]))]; place(); });
@@ -358,21 +392,33 @@ function render() {
     });
   }
 
-  // points last -- smallest targets on top
+  // points and offsets last -- smallest targets on top
+  const DOTS = {};
   for (const k in H) {
-    if (H[k].kind !== 'point') continue;
+    if (H[k].kind !== 'point' && H[k].kind !== 'offset') continue;
     const lay = layerOf(k);
     if (!vis[lay]) continue;
-    const v = state[k];
+    const v = absXY(k);
     const hit = el('circle', {cx:v[0], cy:v[1], r:13, class:'hit'});
     const dot = el('circle', {cx:v[0], cy:v[1], r:6,
       class:'dot ' + (lay === 'labels' ? 'label' : 'node')});
     dot.dataset.k = k;
-    drag(hit, k, (x, y) => { state[k] = [x, y];
-      for (const n of [hit, dot]) { n.setAttribute('cx', x); n.setAttribute('cy', y); } });
+    DOTS[k] = [hit, dot];
+    drag(hit, k, (x, y) => {
+      if (H[k].kind === 'offset') {
+        const a = anchorXY(k);
+        state[k] = [Math.round((x - a[0]) * 10) / 10, Math.round((y - a[1]) * 10) / 10];
+      } else {
+        state[k] = [x, y];
+      }
+      const p = absXY(k);
+      for (const n of DOTS[k]) { n.setAttribute('cx', p[0]); n.setAttribute('cy', p[1]); }
+      moveDeps(k, DOTS);
+    });
     svg.append(hit, dot);
     if (sel === k) tags.push([v[0] + 11, v[1] - 9, H[k].label]);
   }
+  RENDER_DOTS = DOTS;
 
   for (const [x, y, t] of tags) { const e = el('text', {x, y, class:'tag'});
     e.textContent = t; svg.append(e); }
@@ -393,11 +439,8 @@ function sync() {
   document.getElementById('json').textContent =
     Object.keys(p).length ? JSON.stringify(p, null, 1) : '{}   nothing changed yet';
   for (const k in H) {
-    // NOT CSS.escape(k): getElementById matches an id LITERALLY, so the
-    // backslashes CSS.escape inserts for the dots in "box.stac" mean the row
-    // is never found and the panel silently stops tracking the canvas for
-    // every dotted key -- which is nearly all of them.
-    const row = document.getElementById('row_' + k);
+    const row = ROWS.get(k);   // NOT getElementById + CSS.escape: ids match
+                               // literally, and escaping the dots breaks it
     if (!row) continue;
     row.classList.toggle('on', !same(state[k], H[k].default));
     row.classList.toggle('sel', sel === k);
@@ -409,6 +452,8 @@ function sync() {
 }
 
 // ---- side panel ----------------------------------------------------------
+const ROWS = new Map();
+
 function panel() {
   const lay = document.getElementById('layers');
   for (const name of ['boxes','nodes','labels','flows']) {
@@ -425,7 +470,7 @@ function panel() {
     d.innerHTML = '<h2>' + g + '</h2>';
     for (const k of groups[g]) {
       const h = H[k], row = document.createElement('div');
-      row.className = 'row'; row.id = 'row_' + k;
+      row.className = 'row'; row.id = 'row_' + k; ROWS.set(k, row);
       row.onclick = ev => { if (ev.target.tagName !== 'INPUT') { sel = k; render(); } };
       const lb = document.createElement('label'); lb.textContent = h.label; row.append(lb);
       if (h.kind === 'path') {
@@ -495,8 +540,9 @@ async function doRender() {
   btn.disabled = true; setNote('rendering…', 'busy');
   try {
     const j = await post('/render', {overrides: payload(), style: currentStyle});
+    if (!j || !j.png) throw new Error('empty render response');
     if (seq === renderSeq) {                    // ignore an overtaken response
-      BACKDROPS[currentStyle] = {png: j.png, bg: j.bg};
+      BACKDROPS[currentStyle] = {png: j.png, bg: j.bg || '#ffffff'};
       setStyle(currentStyle);
       const c = Object.keys(payload()).length;
       setNote('preview live — ' + c + ' override' + (c === 1 ? '' : 's') + ' applied', 'ok');
@@ -541,8 +587,11 @@ svg.addEventListener('pointerdown', e => { if (e.target === svg) { sel = null; r
 
 document.querySelectorAll('#styles button').forEach(b =>
   b.onclick = () => setStyle(b.dataset.s));
-let start = 'flat';
-try { start = localStorage.getItem('flowgif.style') || 'flat'; } catch (_) {}
+// ?style= wins over the remembered choice, so ./edit.sh sketch lands you
+// on the render you asked for.
+let start = new URLSearchParams(location.search).get('style');
+if (!start) { try { start = localStorage.getItem('flowgif.style'); } catch (_) {} }
+start = start || 'flat';
 setStyle(BACKDROPS[start] ? start : 'flat');
 
 panel(); render(); buttons();
@@ -557,6 +606,11 @@ def main():
         handles[key] = dict(kind=h["kind"], label=h["label"],
                             value=_jsonable(h["value"]),
                             default=_jsonable(h["default"]))
+        # offsets resolve against another handle, and sizes pair with a grip;
+        # both need their partner key on the client side
+        for extra in ("anchor_key", "size_key"):
+            if h.get(extra):
+                handles[key][extra] = h[extra]
 
     backdrops = {}
     for style in ("flat", "sketch"):

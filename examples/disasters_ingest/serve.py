@@ -57,6 +57,9 @@ def render_scene(overrides, style):
         code = (
             "import sys; sys.path.insert(0, %r);"
             "import gen_frames as G;"
+            # frame_svg() alone does not stage sprites -- main() does, and we
+            # never call it. Without this the preview silently loses every logo.
+            "G.stage_assets();"
             "from style import S;"
             "open(%r, 'w').write(G.frame_svg(0));"
             "print(S.bg)" % (HERE, svg_path)
@@ -95,8 +98,17 @@ class Handler(SimpleHTTPRequestHandler):
         super().__init__(*a, directory=HERE, **kw)
 
     def log_message(self, fmt, *args):
-        if "POST" in (args[0] if args else ""):
-            sys.stderr.write("  %s\n" % (fmt % args))
+        # BaseHTTPRequestHandler calls this from log_request AND log_error, and
+        # the two pass different argument types (a request line vs an
+        # HTTPStatus). Assuming a string here raised TypeError inside the
+        # handler thread, which aborted the response mid-flight -- the browser
+        # saw ERR_EMPTY_RESPONSE and the page lost whatever it was fetching.
+        try:
+            line = fmt % args
+        except Exception:
+            line = " ".join(str(a) for a in args)
+        if "POST" in line:
+            sys.stderr.write("  %s\n" % line)
 
     def _json(self, code, payload):
         body = json.dumps(payload).encode()
