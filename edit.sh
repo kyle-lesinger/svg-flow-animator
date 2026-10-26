@@ -6,6 +6,7 @@
 #   ./edit.sh disasters          the disasters_ingest diagram
 #   ./edit.sh disasters sketch   hand-drawn variant
 #   ./edit.sh disasters --stop   stop its preview server
+#   ./edit.sh managed            the Managed Services / External accounts walkthrough
 #
 # Anything after the example name is passed straight through.
 set -euo pipefail
@@ -19,8 +20,11 @@ case "${1:-}" in
   minimal)
     shift
     exec "$D/examples/minimal/edit.sh" "$@" ;;
+  managed|managed_services)
+    shift
+    exec "$D/examples/managed_services/edit.sh" "$@" ;;
   -h|--help)
-    sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
   *)
     # No example named -- default to minimal and pass the flags through.
     exec "$D/examples/minimal/edit.sh" "$@" ;;

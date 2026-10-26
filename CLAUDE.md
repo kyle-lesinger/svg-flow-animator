@@ -30,9 +30,11 @@ svg_flow_animator/     the reusable package
   timeline.py          Stage, flows, pulses, auto-placed callouts
   overrides.py         hand-tunable geometry + handle registry
   editor.py            generates a browser editor from that registry
+  serve.py             live-preview server behind an editor (/render, /save)
   render.py            parallel rasterisation, GIF assembly
 examples/minimal/      self-contained demo, no external artwork
 examples/disasters_ingest/   the real diagram this was built for
+examples/managed_services/   Managed Services / External accounts walkthrough
 docs/                  ARCHITECTURE, DECISIONS, GOTCHAS, ASSETS
 ```
 
@@ -44,7 +46,7 @@ an example calling `editor.build(...)`.
 ## Run / verify
 
 ```bash
-python3 tests/run.py                                 # 247 tests, <1s
+python3 tests/run.py                                 # 283 tests, ~8s
 python3 examples/minimal/demo.py                     # full pipeline, ~360 frames
 python3 examples/minimal/demo.py --style=sketch      # hand-drawn variant
 python3 -m compileall svg_flow_animator examples     # syntax
@@ -70,6 +72,7 @@ Launching an editor, from the repo root:
 ./edit.sh disasters          # the disasters diagram (flat)
 ./edit.sh disasters sketch   # hand-drawn
 ./edit.sh disasters --stop   # stop its preview server
+./edit.sh managed            # managed_services, live preview
 ```
 
 Each example also has its own `edit.sh`; the root one only dispatches. The

@@ -7,3 +7,11 @@ frames/
 out/
 *.gif
 !docs/*.gif
+
+# managed_services: screenshots are of a live NASA system and not ours to
+# publish; the editor embeds them in its backdrop
+examples/managed_services/assets/
+examples/managed_services/editor.html
+examples/managed_services/sections/
+examples/managed_services/.editor.*
+examples/managed_services/_preview_*
