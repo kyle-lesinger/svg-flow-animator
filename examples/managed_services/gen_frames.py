@@ -204,11 +204,8 @@ def boxes(st):
                       key="box.dashboard"))
     out.append(st.text(*L.TITLE_MANAGED, "Managed Services Account", 25,
                        fill=BLUE, weight="bold"))
-    out.append(st.text(*L.BADGE_MANAGED, "Managed by NASA ESD", 15, fill=BLUE))
     out.append(st.text(*L.TITLE_EXTERNAL, "Externally Managed Accounts", 25,
                        fill=RED, weight="bold"))
-    out.append(st.text(*L.BADGE_EXTERNAL, "Managed by each organization", 15,
-                       fill=RED))
     out.append(st.text(*L.TITLE_DASHBOARD, "User Dashboard", 14, fill=BLUE,
                        weight="bold"))
     return "".join(out)

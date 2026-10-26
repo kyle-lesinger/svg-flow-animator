@@ -44,8 +44,7 @@ out = dict(style=G.S.name, handles=sorted(ov.HANDLES), personas=list(L.PERSONAS)
            shots=sorted(story.SHOTS), chapters=G.CHAPTERS, total=G.TOTAL,
            canvas=(L.W, L.H), diagram_h=L.DIAGRAM_H,
            band_rects=[L.CAPTION, L.CAPTION_BESIDE_SHOT] + [L.shot_rect(k) for k in story.SHOTS],
-           title_ys=[L.TITLE_MANAGED[1], L.BADGE_MANAGED[1], L.TITLE_EXTERNAL[1],
-                     L.BADGE_EXTERNAL[1], L.TITLE_DASHBOARD[1]],
+           title_ys=[L.TITLE_MANAGED[1], L.TITLE_EXTERNAL[1], L.TITLE_DASHBOARD[1]],
            label_ys=[v["label_c"][1] + 18 * (len(v["label"].splitlines()) - 1)
                      for v in L.NODES.values()])
 

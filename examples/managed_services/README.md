@@ -4,14 +4,16 @@ A narrated GIF of page 2 of the Lucid architecture figure. It starts with the
 **Data Production Operator** working through the Algorithm Development
 Environment and the Job Monitoring Dashboard, then follows the work through
 processing, storage, cataloging and viewing. Who manages what comes second,
-right after the operator, and the story closes on the Science Investigator.
+right after the operator. The story closes on other users, such as a Science
+Investigator, who can work in either account.
 
-The figure's two account boundaries carry ownership throughout:
+The figure's two account boundaries carry ownership throughout. The diagram
+names the boxes only, and the captions say who runs them:
 
-| box | managed by |
+| box | run by |
 | --- | --- |
-| **Managed Services Account** (blue) | NASA ESD |
-| **Externally Managed Accounts** (red) | each organization, for itself |
+| **Managed Services Account** (blue) | a data processing system operations team |
+| **Externally Managed Accounts** (red) | each project, which also maintains and funds its File Storage |
 
 A connector that crosses between them is drawn **dashed**, except where
 `layout.SOLID` says otherwise.
@@ -98,16 +100,18 @@ choices.
 | Authentication & Authorization | Reads | User Management | crosses accounts |
 | Data Processing System | Accesses | Algorithm Catalog | crosses accounts. **Corrected**: Lucid draws this from the managed ADE, which does not reach the catalog |
 | Algorithm Development Env. | Triggers | Data Processing System | |
-| Data Processing System | Writes | Job Monitoring Dashboard | **Corrected**: reversed from Lucid; the system writes job status to the dashboard |
+| Job Monitoring Dashboard | Reads | Data Processing System | the dashboard reads job status from the system (Lucid's arrow runs this way, labelled "Writes") |
 | Data Processing System | Writes outputs | File Storage | crosses accounts, but drawn **solid** to pair with "Updates STAC collections" (`layout.SOLID`). **Corrected**: Lucid routes this through Compute Instances, dropped as redundant; Lucid's label is "Produces" |
 | Data Processing System | Updates STAC collections | Data Catalog | **Added**: not in the Lucid figure |
 | Data Service APIs | Queries | Data Catalog | |
 | Data Catalog | Indexes | File Storage | crosses accounts |
 | Data Service APIs | Serves | Visualization Tools | |
-| Operator | Views | both Visualization Tools | |
-| Science Investigator | Accesses | org Algorithm Development Env. | |
-| org Algorithm Development Env. | Publishes / Reads | Algorithm Catalog / File Storage | |
-| Science Investigator | Views | both Visualization Tools | |
+| Science Investigator | Accesses | Managed Services Account | ends on the box: other users reach an account, not a component |
+| Science Investigator | Accesses | Externally Managed Accounts | as above |
+| project Algorithm Development Env. | Publishes / Reads | Algorithm Catalog / File Storage | |
+
+The Lucid figure's four long "Views" curves, from both personas to both sets of
+Visualization Tools, are left out on purpose: they crossed the whole figure.
 
 **The personas are sources only.** No flow may terminate on one, and
 `tests/test_managed_services.py` enforces it.

@@ -50,12 +50,8 @@ CAPTION_BESIDE_SHOT = ov.rect("box.caption_shot", (30, 925, 540, 165),
 # through its top edge, and a top-left title had two of them cutting through it.
 TITLE_MANAGED = ov.offset("label.box.managed", (22, 36), "box.managed", MANAGED,
                           "Managed title")
-BADGE_MANAGED = ov.offset("label.box.managed.badge", (22, 60), "box.managed",
-                          MANAGED, "Managed badge")
-TITLE_EXTERNAL = ov.offset("label.box.external", (22, 193), "box.external",
+TITLE_EXTERNAL = ov.offset("label.box.external", (22, 212), "box.external",
                            EXTERNAL, "External title")
-BADGE_EXTERNAL = ov.offset("label.box.external.badge", (22, 219), "box.external",
-                           EXTERNAL, "External badge")
 TITLE_DASHBOARD = ov.offset("label.box.dashboard", (12, 22), "box.dashboard",
                             DASHBOARD, "User Dashboard title")
 
@@ -115,8 +111,8 @@ _FLOWS = {
                       [(490, 380), (400, 430), (400, 708)]),
     "ade_dps":       ("ade", "dps", "Triggers",
                       [(525, 245), (525, 328)]),
-    "dps_jmd":       ("dps", "jmd", "Writes",
-                      [(560, 335), (640, 300), (700, 245)]),
+    "jmd_dps":       ("jmd", "dps", "Reads",
+                      [(700, 245), (640, 300), (560, 335)]),
     "dps_files":     ("dps", "files", "Writes outputs",
                       [(525, 430), (525, 618), (845, 618), (845, 708)]),
     "dps_catalog":   ("dps", "catalog", "Updates STAC collections",
@@ -127,20 +123,15 @@ _FLOWS = {
                       [(880, 410), (880, 483)]),
     "cat_files":     ("catalog", "files", "Indexes",
                       [(880, 568), (880, 708)]),
-    "op_viz":        ("operator", "viz", "Views",
-                      [(1365, 232), (1250, 290), (1115, 350)]),
-    "op_orgviz":     ("operator", "orgviz", "Views",
-                      [(1475, 232), (1500, 420), (1300, 640), (1115, 735)]),
-    "inv_orgade":    ("investigator", "orgade", "Accesses",
-                      [(1420, 828), (1380, 848), (620, 848), (620, 812)]),
+    # Other users reach an ACCOUNT, not a component: these end on the box edge.
+    "inv_managed":   ("investigator", "managed", "Accesses",
+                      [(1392, 708), (1222, 540)]),
+    "inv_external":  ("investigator", "external", "Accesses",
+                      [(1380, 745), (1222, 745)]),
     "orgade_algcat": ("orgade", "algcat", "Publishes",
                       [(585, 745), (436, 745)]),
     "orgade_files":  ("orgade", "files", "Reads",
                       [(655, 745), (824, 745)]),
-    "inv_orgviz":    ("investigator", "orgviz", "Views",
-                      [(1383, 745), (1115, 745)]),
-    "inv_viz":       ("investigator", "viz", "Views",
-                      [(1385, 712), (1290, 520), (1115, 385)]),
 }
 FLOWS = {k: dict(src=s, dst=d, label=lab, default=pts)
          for k, (s, d, lab, pts) in _FLOWS.items()}
@@ -149,7 +140,8 @@ FLOWS = {k: dict(src=s, dst=d, label=lab, default=pts)
 def account_of(name):
     if name in NODES:
         return NODES[name]["account"]
-    return {"dashboard": "managed"}.get(name)
+    return {"dashboard": "managed", "managed": "managed",
+            "external": "external"}.get(name)
 
 
 # Crossing flows are dashed, except these, which are drawn solid by choice:

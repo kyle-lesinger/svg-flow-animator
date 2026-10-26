@@ -48,64 +48,54 @@ CHAPTER_TITLES = {
     "data": "Finding the outputs",
     "view": "Seeing the results",
     "accounts": "Who manages what",
-    "investigator": "The Science Investigator",
+    "users": "Other users",
 }
 
 BEATS = [
     dict(chapter="operator", anchor="node.operator", dur=55,
          flows=["op_dash"], pulse=["ade", "jmd"], glow=["box.dashboard"],
-         text="The journey starts with the Data Production Operator and two "
-              "tools on the User Dashboard: the Algorithm Development "
-              "Environment and the Job Monitoring Dashboard."),
+         text="Science Investigators and Data Production Operators would access the user dashboard where they could access the algorithm development environment to access compute resources and a job monitoring dashboard to view statuses and track and manage compute costs."),
     dict(chapter="accounts", anchor="box.managed", dur=40,
          glow=["box.managed"],
-         text="Everything in blue is the Managed Services Account, managed by "
-              "NASA ESD."),
+         text="The blue box includes managed services that would be operated and maintained by a data processing system operations team."),
     dict(chapter="accounts", anchor="box.external", dur=40,
          glow=["box.external"],
-         text="Everything in red sits in Externally Managed Accounts, each "
-              "managed by its own organization: its users, algorithms, data and "
-              "tools."),
+         text="The red box includes potential tools and services managed by the projects. File storage would be maintained and funded by the projects."),
     dict(chapter="access", anchor="node.auth", dur=60,
          flows=["auth_dash", "auth_users"], pulse=["auth", "users"],
-         text="Sign-in runs through NASA ESD's Authentication & Authorization, "
-              "which checks users against each organization's own User "
+         text="Sign-in runs through a managed Authentication & Authorization service, "
+              "which verifies users against each project's own User "
               "Management."),
     dict(chapter="develop", anchor="node.ade", dur=45,
          pulse=["ade"],
-         text="In the Algorithm Development Environment, the operator builds "
-              "and tests algorithms before running them."),
+         text="In the Algorithm Development Environment, the operator/investigator builds "
+              "and tests algorithms before running them at scale."),
     dict(chapter="run", anchor="node.dps", dur=110,
          flows=["ade_dps", "dps_algcat", ["dps_files", "dps_catalog"]],
          pulse=["dps", "algcat", "files", "catalog"],
-         text="The Algorithm Development Environment triggers jobs on the Data "
-              "Processing System. It accesses each algorithm in the Algorithm "
-              "Catalog, then writes outputs to File Storage and updates STAC "
-              "collections in the Data Catalog."),
+         text="The Algorithm Development Environment accesses defined algorithm(s) in the project's Standards-compliant Algorithm Catalog and calls on the data processing system to produce output data and catalog it in the managed Data Catalog."),
     dict(chapter="monitor", anchor="node.jmd", dur=90,
-         flows=["dps_jmd"], pulse=["jmd"], shots=["jobs"],
-         text="As jobs run, the Data Processing System writes their status to "
-              "the Job Monitoring Dashboard: queued, started, completed, and "
-              "whether they succeeded."),
+         flows=["jmd_dps"], pulse=["jmd"], shots=["jobs"],
+         text="As jobs run, the Job Monitoring Dashboard reads their status from "
+              "the Data Processing System: queued, started, successful, or failed."),
     dict(chapter="data", anchor="node.catalog", dur=45,
          flows=["cat_files"], pulse=["catalog", "files"],
-         text="The Data Catalog indexes the outputs held in File Storage, so "
-              "they can be found where they sit."),
+         text="The Data Catalog indexes the data in File Storage."),
     dict(chapter="data", anchor="node.api", dur=45,
          flows=["api_cat", "api_viz"], pulse=["api", "viz"],
-         text="The Data Service APIs query the Data Catalog and serve results "
+         text="The interoperable Data Service APIs query the Data Catalog and serve data "
               "to the Visualization Tools."),
     dict(chapter="view", anchor="node.viz", dur=50,
-         flows=["op_viz", "op_orgviz"], pulse=["viz", "orgviz"],
-         text="The operator views results in the managed Visualization Tools, "
-              "or in the organization's own."),
-    dict(chapter="investigator", anchor="node.investigator", dur=60,
-         flows=["inv_orgade", "orgade_algcat", "orgade_files"],
-         pulse=["investigator", "orgade"],
-         text="A Science Investigator works in their organization's own "
-              "Algorithm Development Environment, publishing to the Algorithm "
-              "Catalog and reading from File Storage."),
-    dict(chapter="investigator", anchor="node.investigator", dur=40,
-         flows=["inv_orgviz", "inv_viz"], pulse=["orgviz", "viz"],
-         text="They view results in both sets of Visualization Tools."),
+         pulse=["viz", "orgviz"],
+         text="The operator views and assesses data results in compatible Visualization Tools or Services"),
+    dict(chapter="users", anchor="node.investigator", dur=55,
+         flows=[["inv_managed", "inv_external"]], pulse=["investigator"],
+         text="Beyond the Data Production Operator, other users such as a "
+              "Science Investigator can work in the centrally managed account "
+              "or in their project's externally managed account."),
+    dict(chapter="users", anchor="node.orgade", dur=50,
+         flows=["orgade_algcat", "orgade_files"], pulse=["orgade"],
+         text="In their project's account, they can use its own Algorithm "
+              "Development Environment, publishing to the Algorithm Catalog and "
+              "reading from File Storage."),
 ]
