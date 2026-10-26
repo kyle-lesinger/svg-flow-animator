@@ -29,6 +29,7 @@ frame 417 and nowhere else.
 | `timeline` | `Stage`, flow connectors, pulses, auto-placed callouts |
 | `overrides` | Hand-tunable geometry + the handle registry |
 | `editor` | Generates a browser editor from that registry |
+| `serve` | Live-preview server behind an editor |
 | `render` | Parallel rasterisation and GIF assembly |
 
 ## The handle registry
@@ -189,7 +190,11 @@ same size.
 
 ## Live preview
 
-`serve.py` (in the example) gives the editor a real renderer over two endpoints:
+`svg_flow_animator.serve` gives the editor a real renderer over two endpoints.
+`disasters_ingest` still carries its own older copy as `serve.py`;
+`managed_services` uses the package one, and builds its editor with
+`editor.build(..., live={view: style})`. Without `live` an editor is
+download-only, exactly as before.
 
 - `POST /render` — render the scene with candidate overrides. **Side-effect
   free**: it must never touch the project's `overrides.json`, or previewing
@@ -199,3 +204,9 @@ same size.
 Requests are debounced client-side with only one in flight; later edits collapse
 into a single follow-up and stale responses are discarded by sequence number,
 so fast dragging cannot queue a backlog or land an out-of-date image.
+
+The server renders in a **subprocess** that imports the example's module
+fresh, because a layout resolves its geometry once at import and a style is
+picked once too. The module reads `FLOWGIF_STYLE` and `FLOWGIF_OVERRIDES` and
+defines `preview_svg(path) -> background`; the full contract is in the
+`serve` module docstring.

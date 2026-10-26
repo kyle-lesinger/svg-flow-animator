@@ -266,6 +266,39 @@ class TestBuild(EditorBuildCase):
         self.assertIn('"bg": "#fdfcf8"', html)
 
 
+class TestLivePreview(EditorBuildCase):
+    """`live=` wires the editor to svg_flow_animator.serve; without it the page
+    must behave exactly as the download-only editor always has."""
+
+    def test_without_live_the_page_carries_null(self):
+        _path, html = self.build()
+        self.assertNotIn("__LIVE__", html)
+        self.assertIn("LIVE = null", sup.extract_scripts(html)[0])
+
+    def test_live_maps_each_view_to_the_style_the_server_renders(self):
+        live = {"Flat": "flat", "Hand-drawn": "sketch"}
+        _path, html = self.build(backdrop={"Flat": sup.png_bytes(4, 4),
+                                           "Hand-drawn": sup.png_bytes(4, 4)},
+                                 live=live)
+        self.assertIn("LIVE = " + json.dumps(live), sup.extract_scripts(html)[0])
+
+    def test_a_live_style_for_a_view_that_does_not_exist_fails_loudly(self):
+        # It would never be asked for, so that view would silently go stale.
+        with self.assertRaises(ValueError):
+            self.build(backdrop={"Flat": sup.png_bytes(4, 4)},
+                       live={"Sketch": "sketch"})
+
+    def test_render_and_save_are_the_server_endpoints(self):
+        script = sup.extract_scripts(self.build(live={"view": "flat"})[1])[0]
+        self.assertIn("post('/render'", script)
+        self.assertIn("post('/save'", script)
+
+    def test_off_disk_the_live_buttons_disable_themselves(self):
+        # file:// has no renderer; failing on click would look like a bug.
+        script = sup.extract_scripts(self.build(live={"view": "flat"})[1])[0]
+        self.assertIn("location.protocol.startsWith('http')", script)
+
+
 @sup.needs_node
 class TestGeneratedJavaScript(EditorBuildCase):
     """
@@ -297,6 +330,12 @@ class TestGeneratedJavaScript(EditorBuildCase):
     def test_empty_registry(self):
         _path, html = self.build(handles={})
         self.check(html, "empty")
+
+    def test_a_live_editor(self):
+        _path, html = self.build(backdrop={"Flat": sup.png_bytes(4, 4),
+                                           "Hand-drawn": sup.png_bytes(4, 4)},
+                                 live={"Flat": "flat", "Hand-drawn": "sketch"})
+        self.check(html, "live")
 
     def test_the_real_minimal_demo_registry(self):
         # The minimal demo is the smoke test: self-contained, no artwork, and

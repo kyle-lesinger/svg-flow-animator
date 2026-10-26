@@ -138,7 +138,7 @@ def _one_backdrop(source, size, background, workdir, tag):
 
 
 def build(out_path, size, backdrop, handles=None, title="layout",
-          background="#ffffff", workdir=None, label_prefix="label."):
+          background="#ffffff", workdir=None, label_prefix="label.", live=None):
     """
     Write a standalone editor HTML file. Returns its path.
 
@@ -153,11 +153,23 @@ def build(out_path, size, backdrop, handles=None, title="layout",
     workdir       where to rasterise; defaults to out_path's directory, which
                   is where a project's asset hrefs already resolve
     label_prefix  key prefix that marks a handle as a text position
+    live          {view name: style} to offer live preview and Save through
+                  `svg_flow_animator.serve`; the style is what /render is asked
+                  for when that view is showing. Omit for a download-only
+                  editor. Opened off disk, a live editor disables both buttons
+                  and says why.
     """
     out_path = os.path.abspath(out_path)
     workdir = workdir or os.path.dirname(out_path)
 
     views = backdrop if isinstance(backdrop, dict) else {"view": backdrop}
+    if live:
+        unknown = set(live) - set(views)
+        if unknown:
+            # A live style keyed by a view that does not exist would never be
+            # asked for, so that view would silently stop refreshing.
+            raise ValueError("live names views that do not exist: %s"
+                             % ", ".join(sorted(unknown)))
     backdrops = {name: _one_backdrop(src, size, background, workdir, str(i))
                  for i, (name, src) in enumerate(views.items())}
 
@@ -170,6 +182,7 @@ def build(out_path, size, backdrop, handles=None, title="layout",
             .replace("__VIEWS__", json.dumps(list(views) if len(views) > 1 else []))
             .replace("__HANDLES__", json.dumps(hs))
             .replace("__LAYERS__", json.dumps(layers))
+            .replace("__LIVE__", json.dumps(live or None))
             .replace("__TITLE__", str(title))
             .replace("__W__", str(size[0]))
             .replace("__H__", str(size[1])))
@@ -245,6 +258,11 @@ HTML = r"""<!doctype html>
   .hint b { color:#aab4c2; }
   .undo { display:flex; gap:6px; }
   .undo button { flex:1; }
+  #live { display:flex; flex-direction:column; gap:6px; padding-bottom:8px;
+          border-bottom:1px solid #333a44; }
+  #live .undo label { display:flex; align-items:center; gap:5px; font-size:11.5px;
+                      color:#c6cdd8; }
+  .hint.ok { color:#57c27a; } .hint.warn { color:#f0883e; } .hint.busy { color:#ffd479; }
 
   /* --- canvas handles ---------------------------------------------------- */
   /* Hit areas are invisible and generous; the visible dot never takes a click,
@@ -291,6 +309,14 @@ HTML = r"""<!doctype html>
   <div id="layers"></div>
   <div id="panel"></div>
   <footer>
+    <div id="live">
+      <div class="undo">
+        <button id="refresh">Refresh preview</button>
+        <label><input type="checkbox" id="auto" checked> auto</label>
+      </div>
+      <button id="save">Save to project</button>
+      <div id="srvnote" class="hint"></div>
+    </div>
     <div class="undo">
       <button id="undo" class="ghost">&#8630; Undo</button>
       <button id="redo" class="ghost">Redo &#8631;</button>
@@ -312,7 +338,7 @@ HTML = r"""<!doctype html>
 </aside>
 <script>
 const H = __HANDLES__, LAYERS = __LAYERS__, W = __W__, HH = __H__;
-const BACKDROPS = __BACKDROPS__, VIEWS = __VIEWS__;
+const BACKDROPS = __BACKDROPS__, VIEWS = __VIEWS__, LIVE = __LIVE__;
 const svg = document.getElementById('ov');
 const NS = 'http://www.w3.org/2000/svg';
 const el = (n, a) => { const e = document.createElementNS(NS, n);
@@ -326,7 +352,9 @@ for (const k in H) state[k] = clone(H[k].value);
 // Several renders of the SAME geometry. Switching swaps only the picture --
 // the handles are identical, which is what makes one overrides.json drive all
 // of them.
+let currentView = null;
 function setView(name) {
+  currentView = name;
   const b = BACKDROPS[name];
   const err = document.getElementById('err');
   if (!b || !b.png) {
@@ -346,6 +374,9 @@ function setView(name) {
   document.querySelectorAll('#views button').forEach(x =>
     x.classList.toggle('on', x.dataset.v === name));
   try { localStorage.setItem('sfa.view', name); } catch (_) {}
+  // Each view's backdrop is rendered separately, so one refreshed while
+  // another was showing is out of date. Catch it up on arrival.
+  if (ONLINE && drawnFor[name] !== JSON.stringify(payload())) scheduleAuto();
 }
 
 // ---- undo / redo ---------------------------------------------------------
@@ -665,6 +696,98 @@ function sync() {
         inp.value = H[k].kind === 'scalar' ? state[k] : flat(state[k])[i]; });
   }
   buttons();
+  scheduleAuto();
+}
+
+// ---- live preview --------------------------------------------------------
+// Only when the page was built with `live` AND is served by
+// svg_flow_animator.serve. Off disk (file://) there is no renderer to ask, so
+// the buttons disable themselves and say why rather than failing when clicked.
+const ONLINE = !!LIVE && location.protocol.startsWith('http');
+const note = document.getElementById('srvnote');
+const setNote = (msg, cls) => { note.textContent = msg; note.className = 'hint ' + (cls || ''); };
+// view -> the payload its backdrop was rendered from. The baked-in backdrops
+// match the overrides the page was built with.
+const drawnFor = {};
+for (const v in BACKDROPS) drawnFor[v] = null;
+
+async function post(path, body) {
+  const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'},
+                               body: JSON.stringify(body)});
+  const j = await r.json().catch(() => ({error:'bad response'}));
+  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+
+// A render takes a second or two, so changes are debounced and only ONE
+// request is ever in flight. Edits during a render collapse into a single
+// follow-up, and a stale response is discarded by sequence number -- otherwise
+// fast dragging queues a backlog and lands an out-of-date image.
+let renderSeq = 0, renderBusy = false, renderPending = false, debounceTimer = null;
+
+function scheduleAuto() {
+  if (!ONLINE || !(currentView in LIVE) || !document.getElementById('auto').checked) return;
+  // sync() runs on selection changes too. Only a change to the GEOMETRY is
+  // worth a render.
+  if (drawnFor[currentView] === JSON.stringify(payload())) return;
+  clearTimeout(debounceTimer);
+  setNote('change pending…', 'busy');
+  debounceTimer = setTimeout(doRender, 450);
+}
+
+async function doRender() {
+  if (!ONLINE) return;
+  if (renderBusy) { renderPending = true; return; }
+  renderBusy = true;
+  const seq = ++renderSeq, view = currentView, sent = JSON.stringify(payload());
+  const btn = document.getElementById('refresh');
+  btn.disabled = true; setNote('rendering…', 'busy');
+  try {
+    const j = await post('/render', {overrides: payload(), style: LIVE[view]});
+    if (!j || !j.png) throw new Error('empty render response');
+    if (seq === renderSeq) {                    // ignore an overtaken response
+      BACKDROPS[view] = {png: j.png, bg: j.bg || '#ffffff'};
+      drawnFor[view] = sent;
+      if (view === currentView) setView(view);
+      const c = Object.keys(payload()).length;
+      setNote('preview live — ' + c + ' override' + (c === 1 ? '' : 's') + ' applied', 'ok');
+    }
+  } catch (e) {
+    if (seq === renderSeq) setNote('render failed: ' + e.message, 'warn');
+  } finally {
+    renderBusy = false; btn.disabled = false;
+    if (renderPending) { renderPending = false; doRender(); }
+  }
+}
+
+function liveSetup() {
+  if (!LIVE) { document.getElementById('live').remove(); return; }
+  for (const v in BACKDROPS) if (!(v in LIVE)) delete drawnFor[v];
+  if (!ONLINE) {
+    document.getElementById('refresh').disabled = true;
+    document.getElementById('save').disabled = true;
+    setNote('Opened from disk: no renderer here. Launch it with the example\'s ' +
+            'edit.sh for live preview and Save.', 'warn');
+    return;
+  }
+  // Mark the baked backdrops current, so opening the page renders nothing.
+  for (const v in drawnFor) drawnFor[v] = JSON.stringify(payload());
+  setNote('Edits re-render on their own. Save writes overrides.json.', '');
+  document.getElementById('refresh').onclick = doRender;
+  document.getElementById('auto').onchange = e => {
+    if (e.target.checked) scheduleAuto();
+    else { clearTimeout(debounceTimer); setNote('auto-refresh off', ''); }
+  };
+  document.getElementById('save').onclick = async () => {
+    const b = document.getElementById('save');
+    b.disabled = true;
+    try {
+      const j = await post('/save', {overrides: payload()});
+      setNote('saved ' + j.count + ' override' + (j.count === 1 ? '' : 's') +
+              ' — now rebuild the GIF', 'ok');
+    } catch (e) { setNote('save failed: ' + e.message, 'warn'); }
+    b.disabled = false;
+  };
 }
 
 // ---- side panel ----------------------------------------------------------
@@ -807,6 +930,7 @@ addEventListener('keydown', e => {
 });
 
 panel();
+liveSetup();
 let first = Object.keys(BACKDROPS)[0];
 try { first = localStorage.getItem('sfa.view') || first; } catch (_) {}
 setView(BACKDROPS[first] ? first : Object.keys(BACKDROPS)[0]);
