@@ -7,6 +7,7 @@
 #   ./edit.sh disasters sketch   hand-drawn variant
 #   ./edit.sh disasters --stop   stop its preview server
 #   ./edit.sh managed            the Managed Services / External accounts walkthrough
+#   ./edit.sh shared             the Shared Data System Capabilities variant
 #
 # Anything after the example name is passed straight through.
 set -euo pipefail
@@ -23,8 +24,11 @@ case "${1:-}" in
   managed|managed_services)
     shift
     exec "$D/examples/managed_services/edit.sh" "$@" ;;
+  shared|shared_services)
+    shift
+    exec "$D/examples/shared_services/edit.sh" "$@" ;;
   -h|--help)
-    sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
   *)
     # No example named -- default to minimal and pass the flags through.
     exec "$D/examples/minimal/edit.sh" "$@" ;;
