@@ -71,11 +71,11 @@ _SPEC = [
      "That bucket feeds the same ingest path \u2014 so partner data lands in "
      "STAC alongside everything else. One catalog for all of it.",
      (800, 450)),
-    # --- the Earthdata GIS chapter. Three beats: agency data arrives, the
+    # --- the Federal Partners chapter. Three beats: partner data arrives, the
     # ArcGIS environments read it, and STAC feeds new service workflows.
     ("egis_agencies", 45,
-     "Earthdata GIS draws from the federal agencies \u2014 NOAA, FEMA and the "
-     "Department of Commerce.",
+     "Federal partners feed the ArcGIS environments \u2014 Earthdata GIS, FEMA "
+     "and the Department of Commerce.",
      (800, 150)),
     ("egis_tools", 45,
      "That data is read into the ArcGIS environments: ArcGIS Desktop, "
@@ -702,16 +702,18 @@ def context_boxes(bright=frozenset(CONTENT_GROUPS), tina_dy=0.0):
     """
     out = []
 
-    # ---- Earthdata GIS (above STAC)
+    # ---- Federal Partners (above STAC)
     o = _op("egis", bright)
     x, y, w, h = L.BOX_EGIS
     out.append(box(x, y, w, h, L.FILL_EGIS, opacity=o))
-    out.append(text(x + w / 2, y + 24, "Earthdata GIS", 15, anchor="middle",
+    out.append(text(x + w / 2, y + 24, "Federal Partners", 15, anchor="middle",
                     weight="bold", opacity=o))
-    # Seals left to right in the export's order. They are pure sources: the
-    # arrows below all leave them, and nothing from STAC terminates on one.
+    # Marks left to right. They are pure sources: the arrows below all leave
+    # them, and nothing from STAC terminates on one. Earthdata GIS took the
+    # middle slot from NOAA, so the EGIS globe appears twice on the canvas --
+    # here and as a Data Integration source -- the way notebook.png does.
     sz = L.EGIS_SEAL_SIZE
-    for i, a in enumerate((L.A_CENSUS, L.A_NOAA, L.A_FEMA)):
+    for i, a in enumerate((L.A_CENSUS, L.A_EGIS, L.A_FEMA)):
         out.append(img(a, L.egis_col_x(i) - sz / 2, L.EGIS_SEAL_Y, sz, sz,
                        opacity=o))
     tz = L.EGIS_TOOL_SIZE
@@ -892,16 +894,23 @@ def funded_static():
              "Funded Projects", 15, weight="bold"),
         text(L.LABEL_TITLE_FUNDED[0], L.LABEL_TITLE_FUNDED[1] + 20,
              "& Partners", 15, weight="bold"),
-        # Four equal-height slots on a shared centre line, re-spaced from three
-        # to fit CSDA. Like ROSES, CSDA is a NASA PROGRAMME rather than a
-        # product: it has no mark of its own, so it takes the meatball and is
-        # told apart by its caption, exactly as ROSES is.
-        img(L.A_NASA, x + 205, y + 10, 60, 44),
-        img(L.A_NASA, x + 278, y + 10, 60, 44),
-        img(L.A_VEDA, x + 351, y + 10, 112, 44),
-        img(L.A_ESRI, x + 476, y + 10, 54, 44),
-        text(x + 235, y + 70, "ROSES", 10, anchor="middle"),
-        text(x + 308, y + 70, "CSDA", 10, anchor="middle"),
+        # Four equal 60x44 slots on a shared centre line, every one captioned.
+        # None of the four is a product with a mark of its own -- they are NASA
+        # programmes -- so each takes an agency logo and is told apart by its
+        # caption, the way ROSES always has been.
+        #
+        # Both numbers are pinned at their ends. x+165 is as far left as the
+        # row can start before the meatball rides over the two-line title, and
+        # the pitch is then what has to give: "Science to Action" is nearly
+        # three times as wide as its logo, and 96 is about as close as it and
+        # "ROSES" may sit. Changing a caption can force this to be re-tuned.
+    ] + [
+        img(a, x + 165 + i * 96, y + 10, 60, 44)
+        for i, a in enumerate((L.A_NASA, L.A_DISASTERS,
+                               L.A_DISASTERS, L.A_DISASTERS))
+    ] + [
+        text(x + 195 + i * 96, y + 70, s, 10, anchor="middle")
+        for i, s in enumerate(("ROSES", "Science to Action", "DRCS", "PORTAL"))
     ])
 
 

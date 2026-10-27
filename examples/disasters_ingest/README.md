@@ -85,16 +85,17 @@ diagram say something untrue.
 
 | block | main flow | minor flow |
 | --- | --- | --- |
-| Earthdata GIS | tools -> STAC | STAC -> tools |
+| Federal Partners | tools -> STAC | STAC -> tools |
 | Data Processing | block -> STAC | STAC -> block |
 | Portal Content | STAC -> Portal | **none — one way** |
 
 - **Main is dominant, minor is subordinate.** The minor return flow must be
   visually lighter and must not compete with the main direction for attention.
-- **Earthdata GIS is a chain**: NOAA / FEMA / Census -> a junction -> ArcGIS
-  Desktop, ArcGIS Online, Service Workflows -> STAC. The three agency seals are
-  **sources only**; no flow from STAC may ever terminate on one. Both STAC-side
-  connectors attach to the three tools.
+- **Federal Partners is a chain**: Earthdata GIS / FEMA / Census -> a junction
+  -> ArcGIS Desktop, ArcGIS Online, Service Workflows -> STAC. The three partner
+  marks are **sources only**; no flow from STAC may ever terminate on one. Both
+  STAC-side connectors attach to the three tools. The block's section key is
+  still `egis`, and `sections/egis.gif` is still its GIF.
 - **TinaCMS is one-way.** Portal Content has no return path to STAC — that
   integration does not exist yet. Do not add one for symmetry.
 

@@ -58,7 +58,7 @@ CONTEXT_OPACITY = 0.40         # greyed-out boxes that are never animated
 # (x, y, w, h)
 BOX_INTEGRATION = ov.rect("box.integration", (40, 130, 550, 640), "Data Integration")
 BOX_PORTAL = ov.rect("box.portal", (1010, 130, 550, 640), "Portal Content")
-BOX_EGIS = ov.rect("box.egis", (680, 96, 240, 200), "Earthdata GIS")
+BOX_EGIS = ov.rect("box.egis", (680, 96, 240, 200), "Federal Partners")
 BOX_PROCESSING = ov.rect("box.processing", (680, 604, 240, 200), "Data Processing")
 BOX_STAC = ov.rect("box.stac", (660, 350, 280, 200), "STAC")
 BOX_FUNDED = ov.rect("box.funded", (40, 800, 550, 80), "Funded Projects")
@@ -92,7 +92,7 @@ EGIS_JUNCTION = ov.point("egis.junction",
                          "EGIS converge point")
 EGIS_BUS_Y = ov.scalar("egis.bus_y", BOX_EGIS[1] + 108, "EGIS fan-out bus")
 
-EGIS_SEALS = ("Census", "NOAA", "FEMA")            # left to right, as exported
+EGIS_SEALS = ("Census", "Earthdata GIS", "FEMA")   # left to right
 EGIS_TOOLS = ("ArcGIS Desktop", "ArcGIS Online", "Service Workflows")
 
 
@@ -242,14 +242,21 @@ A_INGEST = FRAME_ASSETS + "/bA.jpg"        # VEDA Ingest UI lockup
 A_STAC = FRAME_ASSETS + "/bD.png"          # STAC wordmark
 A_VEDA = FRAME_ASSETS + "/cy.png"          # NASA EARTHDATA VEDA wordmark
 A_NASA = FRAME_ASSETS + "/cx.png"          # NASA meatball (ROSES)
-A_ESRI = FRAME_ASSETS + "/cw.png"
-A_EGIS = FRAME_ASSETS + "/bJ.png"
+A_DISASTERS = FRAME_ASSETS + "/disasters.png"   # NASA Disasters spiral, glyph only
+                                           # -- the wordmark is 3.6:1 and three
+                                           # of them will not fit the funded row
+A_ESRI = FRAME_ASSETS + "/cw.png"          # nothing places this any more --
+                                           # kept so re-adding Esri does not
+                                           # mean re-deriving the export id
+A_EGIS = FRAME_ASSETS + "/bJ.png"          # placed TWICE: a Data Integration
+                                           # source, and a Federal Partner
 A_TINA = FRAME_ASSETS + "/cc.png"          # TinaCMS llama
 A_AIRFLOW = ASSETS + "/airflow.svg"        # inlined, not href'd -- read from source dir
 A_JUPYTER = FRAME_ASSETS + "/jupyter.png"
 A_GITHUB = FRAME_ASSETS + "/github.png"
 A_FEMA = FRAME_ASSETS + "/cu.png"
-A_NOAA = FRAME_ASSETS + "/ct.png"
+A_NOAA = FRAME_ASSETS + "/ct.png"          # unplaced since Earthdata GIS took
+                                           # the middle Federal Partners slot
 A_CENSUS = FRAME_ASSETS + "/cv.png"
 A_ARCGIS_ONLINE = FRAME_ASSETS + "/cq.png"
 A_ARCGIS_DESKTOP = FRAME_ASSETS + "/cr.png"
