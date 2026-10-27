@@ -48,7 +48,7 @@ CHAPTER_TITLES = {
     "data": "Finding the outputs",
     "view": "Seeing the results",
     "accounts": "Who manages what",
-    "users": "Other users",
+    "users": "Who else it serves",
 }
 
 BEATS = [
@@ -85,17 +85,24 @@ BEATS = [
          flows=["api_cat", "api_viz"], pulse=["api", "viz"],
          text="The interoperable Data Service APIs query the Data Catalog and serve data "
               "to the Visualization Tools."),
-    dict(chapter="view", anchor="node.viz", dur=50,
-         pulse=["viz", "orgviz"],
-         text="The operator views and assesses data results in compatible Visualization Tools or Services"),
-    dict(chapter="users", anchor="node.investigator", dur=55,
-         flows=[["inv_managed", "inv_external"]], pulse=["investigator"],
-         text="Beyond the Data Production Operator, other users such as a "
-              "Science Investigator can work in the centrally managed account "
-              "or in their project's externally managed account."),
-    dict(chapter="users", anchor="node.orgade", dur=50,
-         flows=["orgade_algcat", "orgade_files"], pulse=["orgade"],
-         text="In their project's account, they can use its own Algorithm "
-              "Development Environment, publishing to the Algorithm Catalog and "
-              "reading from File Storage."),
+    dict(chapter="view", anchor="node.operator", dur=60,
+         flows=[["op_viz", "op_orgviz"]], pulse=["operator", "viz", "orgviz"],
+         text="The operator views and assesses data results in compatible Visualization Tools or Services."),
+    dict(chapter="users", anchor="node.investigator", dur=60,
+         flows=[["inv_viz", "inv_orgade"]], pulse=["investigator"],
+         text="A Science Investigator uses the same platform: viewing results in "
+              "the managed Visualization Tools and developing in their project's "
+              "own Algorithm Development Environment."),
+    dict(chapter="users", anchor="node.developer", dur=50,
+         flows=["dev_api"], pulse=["developer"],
+         text="An Applications Developer builds on the interoperable Data Service "
+              "APIs, bringing the data into their own applications."),
+    dict(chapter="users", anchor="node.analyst", dur=50,
+         flows=[["ana_viz", "ana_orgviz"]], pulse=["analyst"],
+         text="A Decision Maker or Analyst views ready-to-use results in either "
+              "set of Visualization Tools, without running any processing."),
+    dict(chapter="users", anchor="node.operator", dur=45,
+         pulse=["operator", "investigator", "developer", "analyst"],
+         text="One architecture serves them all: centrally managed services in "
+              "one account, and each project's own data and tools in the other."),
 ]

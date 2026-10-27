@@ -78,10 +78,17 @@ _NODES = {
                      "Algorithm Development\nEnvironment", "external"),
     "files":        ((860, 745), "hard-drive", "File Storage", "external"),
     "orgviz":       ((1080, 745), "map-pinned", "Visualization Tools", "external"),
-    "investigator": ((1420, 745), "user-check",
+    # The users column. Everyone but the operator appears only when the story
+    # reaches them; see LATE_PERSONAS.
+    "investigator": ((1420, 345), "user-check",
                      "Science Investigator\n/ Algorithm Developer", None),
+    "developer":    ((1420, 540), "user-cog", "Applications\nDeveloper", None),
+    "analyst":      ((1420, 735), "user-search", "Decision Maker\n/ Analyst", None),
 }
-PERSONAS = ("operator", "investigator")
+PERSONAS = ("operator", "investigator", "developer", "analyst")
+# Hidden until their first beat, then they stay: the closing frame shows every
+# kind of user the architecture serves.
+LATE_PERSONAS = ("investigator", "developer", "analyst")
 
 ICON_DEFAULT = 54
 NODES = {}
@@ -123,11 +130,24 @@ _FLOWS = {
                       [(880, 410), (880, 483)]),
     "cat_files":     ("catalog", "files", "Indexes",
                       [(880, 568), (880, 708)]),
-    # Other users reach an ACCOUNT, not a component: these end on the box edge.
-    "inv_managed":   ("investigator", "managed", "Accesses",
-                      [(1392, 708), (1222, 540)]),
-    "inv_external":  ("investigator", "external", "Accesses",
-                      [(1380, 745), (1222, 745)]),
+    # Users' lines. TEMPORARY (see TRANSIENT): each user's set draws in, then
+    # fades once the next user's lines are in. Routed down the lane between the
+    # account boxes and the users column, so they never cross a user's label.
+    "op_viz":        ("operator", "viz", "Views",
+                      [(1386, 185), (1240, 300), (1117, 355)]),
+    "op_orgviz":     ("operator", "orgviz", "Views",
+                      [(1386, 195), (1245, 320), (1245, 690), (1117, 738)]),
+    "inv_viz":       ("investigator", "viz", "Views",
+                      [(1385, 345), (1117, 365)]),
+    "inv_orgade":    ("investigator", "orgade", "Accesses",
+                      [(1388, 372), (1262, 440), (1262, 848), (620, 848),
+                       (620, 812)]),
+    "dev_api":       ("developer", "api", "Calls",
+                      [(1385, 530), (1200, 470), (917, 392)]),
+    "ana_viz":       ("analyst", "viz", "Views",
+                      [(1388, 705), (1250, 560), (1117, 385)]),
+    "ana_orgviz":    ("analyst", "orgviz", "Views",
+                      [(1383, 735), (1117, 745)]),
     "orgade_algcat": ("orgade", "algcat", "Publishes",
                       [(585, 745), (436, 745)]),
     "orgade_files":  ("orgade", "files", "Reads",
@@ -135,6 +155,11 @@ _FLOWS = {
 }
 FLOWS = {k: dict(src=s, dst=d, label=lab, default=pts)
          for k, (s, d, lab, pts) in _FLOWS.items()}
+
+# Every line a user draws, except the operator's way in at the start of the
+# story, which stays: it is how the whole journey begins.
+TRANSIENT = frozenset(k for k, f in FLOWS.items()
+                      if f["src"] in PERSONAS and k != "op_dash")
 
 
 def account_of(name):

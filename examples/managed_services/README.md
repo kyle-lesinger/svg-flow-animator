@@ -4,8 +4,9 @@ A narrated GIF of page 2 of the Lucid architecture figure. It starts with the
 **Data Production Operator** working through the Algorithm Development
 Environment and the Job Monitoring Dashboard, then follows the work through
 processing, storage, cataloging and viewing. Who manages what comes second,
-right after the operator. The story closes on other users, such as a Science
-Investigator, who can work in either account.
+right after the operator. The story closes by bringing the operator back,
+then a Science Investigator, an Applications Developer and a Decision Maker /
+Analyst, each using the same tools and services.
 
 The figure's two account boundaries carry ownership throughout. The diagram
 names the boxes only, and the captions say who runs them:
@@ -106,12 +107,18 @@ choices.
 | Data Service APIs | Queries | Data Catalog | |
 | Data Catalog | Indexes | File Storage | crosses accounts |
 | Data Service APIs | Serves | Visualization Tools | |
-| Science Investigator | Accesses | Managed Services Account | ends on the box: other users reach an account, not a component |
-| Science Investigator | Accesses | Externally Managed Accounts | as above |
-| project Algorithm Development Env. | Publishes / Reads | Algorithm Catalog / File Storage | |
+| project Algorithm Development Env. | Publishes / Reads | Algorithm Catalog / File Storage | drawn, not narrated |
+| Operator | Views | both Visualization Tools | temporary |
+| Science Investigator | Views / Accesses | Visualization Tools / project ADE | temporary |
+| Applications Developer | Calls | Data Service APIs | temporary; not in the Lucid figure |
+| Decision Maker / Analyst | Views | both Visualization Tools | temporary; not in the Lucid figure |
 
-The Lucid figure's four long "Views" curves, from both personas to both sets of
-Visualization Tools, are left out on purpose: they crossed the whole figure.
+**Users' lines are temporary** (`layout.TRANSIENT`). In the closing chapters
+each user's set draws in, then fades once the next user's lines are in, so the
+right side of the figure never fills up with curves. Every user but the
+operator **appears** only at their first beat (`layout.LATE_PERSONAS`) and then
+stays, so the closing frame shows all of them. The editor shows every line and
+every user, so all of them can be dragged.
 
 **The personas are sources only.** No flow may terminate on one, and
 `tests/test_managed_services.py` enforces it.

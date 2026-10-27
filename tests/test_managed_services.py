@@ -35,7 +35,8 @@ L.warm_up()
 
 h = lambda s: hashlib.sha1(s.encode()).hexdigest()
 out = dict(style=G.S.name, handles=sorted(ov.HANDLES), personas=list(L.PERSONAS),
-           nodes={k: dict(c=v["c"], size=v["size"]) for k, v in L.NODES.items()},
+           nodes={k: dict(c=v["c"], size=v["size"], label=v["label"],
+                          account=v["account"]) for k, v in L.NODES.items()},
            boxes={k: v for k, v in L.BOXES.items()},
            flows={k: dict(src=v["src"], dst=v["dst"], pts=L.flow_path(k))
                   for k, v in L.FLOWS.items()},
@@ -61,6 +62,22 @@ for b in G.BEATS:
 out.update(mid_differs=mids, leaks=leaks, images=shots_seen, captions=captions,
            frame0_leaks=len(re.findall(r'<(rect|ellipse)[^>]*stroke="[^"]*"[^>]*>', frame0)))
 
+# Users' lines are temporary and late users appear; probe both at the
+# frames where they should and should not show.
+last = G.TOTAL - 1
+tmp = {}
+for k in sorted(L.TRANSIENT):
+    b = G.FLOW_BEAT[k][0]["stage"]
+    tmp[k] = dict(mid=bool(G.flow_markup(G.S, k, b.start + b.dur // 2, 1.0)),
+                  gone_after=bool(G.flow_markup(G.S, k, G.VANISH[k] + G.LINE_FADE + 1, 1.0)),
+                  before=bool(G.flow_markup(G.S, k, b.start - 1, 1.0)),
+                  last=bool(G.flow_markup(G.S, k, last, 1.0)),
+                  editor=bool(G.flow_markup(G.S, k, None, 1.0)))
+out.update(transient=tmp, late=list(L.LATE_PERSONAS),
+           appear={n: dict(first=G.node_alpha(n, 0), last=G.node_alpha(n, last),
+                           before=G.node_alpha(n, G.APPEAR[n] - G.FADE - 1))
+                   for n in L.LATE_PERSONAS})
+
 # A screenshot that is not there must say so, loudly, rather than vanish.
 G.STAGED = tempfile.mkdtemp()
 err, sys.stderr = sys.stderr, io.StringIO()
@@ -72,14 +89,14 @@ print(json.dumps(out))
 '''
 
 
-def probe(style):
+def probe(style, example=EXAMPLE):
     fd, empty = tempfile.mkstemp(suffix=".json")
     with os.fdopen(fd, "w") as fh:
         fh.write("{}")
     try:
         env = dict(os.environ, FLOWGIF_STYLE=style, FLOWGIF_OVERRIDES=empty)
-        proc = subprocess.run([sys.executable, "-c", PROBE % dict(here=EXAMPLE)],
-                              env=env, cwd=EXAMPLE, capture_output=True, text=True)
+        proc = subprocess.run([sys.executable, "-c", PROBE % dict(here=example)],
+                              env=env, cwd=example, capture_output=True, text=True)
     finally:
         os.remove(empty)
     if proc.returncode != 0:
@@ -88,14 +105,18 @@ def probe(style):
 
 
 class ManagedCase(unittest.TestCase):
+    # test_shared_services.py reruns every class here against its own example
+    # by overriding `example`, so the cache is keyed by both.
+    example = EXAMPLE
     style = "sketch"
     _cache = {}
 
     @classmethod
     def setUpClass(cls):
-        if cls.style not in cls._cache:
-            cls._cache[cls.style] = probe(cls.style)
-        cls.P = cls._cache[cls.style]
+        key = (cls.example, cls.style)
+        if key not in cls._cache:
+            cls._cache[key] = probe(cls.style, cls.example)
+        cls.P = cls._cache[key]
 
 
 class TestStoryAgreesWithLayout(ManagedCase):
@@ -187,6 +208,37 @@ class TestFrames(ManagedCase):
         self.assertIn("missing", self.P["warned"])
 
 
+class TestUsersChapter(ManagedCase):
+    """The closing chapter: each user's lines draw in and then fade as the next
+    user's arrive, and users join the column one at a time."""
+
+    def test_temporary_lines_show_only_while_in_play(self):
+        for k, t in self.P["transient"].items():
+            self.assertTrue(t["mid"], f"{k} is not drawn during its own beat")
+            self.assertFalse(t["before"], f"{k} shows before its beat")
+            self.assertFalse(t["gone_after"], f"{k} never fades")
+            self.assertFalse(t["last"], f"{k} is still on the closing frame")
+
+    def test_the_editor_still_sees_every_temporary_line(self):
+        for k, t in self.P["transient"].items():
+            self.assertTrue(t["editor"], f"{k} would be impossible to drag")
+
+    def test_late_users_appear_and_then_stay(self):
+        for n, a in self.P["appear"].items():
+            self.assertEqual(a["first"], 0.0, f"{n} is on screen from the start")
+            self.assertEqual(a["before"], 0.0, f"{n} appears early")
+            self.assertEqual(a["last"], 1.0, f"{n} is gone by the end")
+
+    def test_the_operator_never_disappears(self):
+        self.assertNotIn("operator", self.P["late"])
+
+    def test_the_operator_is_back_before_anyone_else_arrives(self):
+        chapters = [b["chapter"] for b in self.P["beats"]]
+        view = next(b for b in self.P["beats"] if b["chapter"] == "view")
+        self.assertIn("operator", view["pulse"])
+        self.assertLess(chapters.index("view"), chapters.index("users"))
+
+
 class TestCaptionBand(ManagedCase):
     """Words and screenshots live in the band under the figure, so they can
     never land on a line or a label. Floating bubbles kept doing exactly that."""
@@ -236,14 +288,17 @@ class TestFlatStyleToo(ManagedCase):
 
 @sup.needs_rsvg
 class TestRenders(unittest.TestCase):
+    example = EXAMPLE
+
     def test_a_mid_beat_frame_rasterises_to_a_plausible_png(self):
         code = (
             "import sys; sys.path.insert(0, %r); import gen_frames as G;"
             "G.stage_assets(); b = G.BEATS[0];"
-            "open(sys.argv[1], 'w').write(G.frame_svg(b['stage'].start + 20))" % EXAMPLE)
-        with tempfile.TemporaryDirectory(dir=EXAMPLE) as d:
+            "open(sys.argv[1], 'w').write(G.frame_svg(b['stage'].start + 20))" % self.example)
+        with tempfile.TemporaryDirectory(dir=self.example) as d:
             svg_path, png = os.path.join(d, "f.svg"), os.path.join(d, "f.png")
-            subprocess.run([sys.executable, "-c", code, svg_path], check=True, cwd=EXAMPLE)
+            subprocess.run([sys.executable, "-c", code, svg_path], check=True,
+                           cwd=self.example)
             subprocess.run(["rsvg-convert", "-w", "1600", "-h", "900", "-o", png, svg_path],
                            check=True)
             self.assertGreater(os.path.getsize(png), 100_000)

@@ -102,6 +102,51 @@ for _b in BEATS:
             FLOW_BEAT[_k] = (_b, _i)
 
 
+# Users' lines are TEMPORARY. Each set draws in, then fades once the next
+# user's lines are in, so the side of the figure never fills up with curves.
+HANDOVER = 24                   # frames the outgoing set overlaps the incoming one
+LINE_FADE = 10
+_TRANSIENT_BEATS = [b for b in BEATS if any(k in L.TRANSIENT for k in b["flows"])]
+VANISH = {}
+for _i, _b in enumerate(_TRANSIENT_BEATS):
+    _nxt = _TRANSIENT_BEATS[_i + 1] if _i + 1 < len(_TRANSIENT_BEATS) else None
+    for _k in _b["flows"]:
+        if _k in L.TRANSIENT:
+            VANISH[_k] = _nxt["stage"].start + HANDOVER if _nxt else _b["end"]
+_unplayed = sorted(L.TRANSIENT - set(VANISH))
+if _unplayed:
+    # A temporary line no beat plays would never be seen at all.
+    raise SystemExit(f"story: temporary lines no beat animates: {_unplayed}")
+
+
+def transient_alpha(k, f):
+    """How visible temporary line k is at frame f. f=None (the still diagram
+    the editor traces over) shows it, so it can be placed."""
+    if f is None:
+        return 1.0
+    start, vanish = FLOW_BEAT[k][0]["stage"].start, VANISH[k]
+    if f < start:
+        return 0.0
+    if f <= vanish:
+        return 1.0
+    return max(0.0, 1.0 - (f - vanish) / LINE_FADE)
+
+
+# Late users appear as their first beat's caption fades in, and then stay.
+APPEAR = {}
+for _b in BEATS:
+    for _n in L.LATE_PERSONAS:
+        if _n not in APPEAR and (_n in _b.get("pulse", ()) or
+                                 any(L.FLOWS[k]["src"] == _n for k in _b["flows"])):
+            APPEAR[_n] = _b["stage"].start
+
+
+def node_alpha(n, f):
+    if f is None or n not in APPEAR:
+        return 1.0
+    return smooth(max(0.0, min(1.0, (f - APPEAR[n] + FADE) / FADE)))
+
+
 def _inside(pt, rect):
     x, y, w, h = rect
     return x <= pt[0] <= x + w and y <= pt[1] <= y + h
@@ -217,7 +262,14 @@ def flow_markup(st, k, f, dim):
     dash = CROSS_DASH if L.crosses(k) and k not in L.SOLID else None
     state, local = flow_state(k, f) if f is not None else ("base", 0.0)
     key = f"flow.{k}"
-    out = [_lines(st, pts, key, LINE, 1.6, dash, opacity=dim)]
+    temporary = k in L.TRANSIENT and f is not None
+    if temporary:
+        # No resting line: a temporary line exists only while it is in play.
+        vis = transient_alpha(k, f)
+        if vis <= 0.01 or state == "base":
+            return ""
+        dim *= vis
+    out = [] if temporary else [_lines(st, pts, key, LINE, 1.6, dash, opacity=dim)]
     color = LINE
     if state == "settled":
         out.append(_lines(st, pts, key, SETTLED, 2.4, dash, opacity=dim))
@@ -371,7 +423,9 @@ def scene(f=None, scope=None, captions=True, st=None, preview=False):
             body.append(timeline.pulse(*v["c"], strength, ACTIVE, r=v["size"] * 0.78))
 
     for n in L.NODES:
-        body.append(node_markup(st, n, dim_node(n)))
+        shown = node_alpha(n, f)
+        if shown > 0.01:
+            body.append(node_markup(st, n, dim_node(n) * shown))
 
     if preview:
         # The editor needs to SEE where each inset sits to drag it.
