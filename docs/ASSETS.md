@@ -24,7 +24,7 @@ of that script is a hardcoded path to the export; point it at your own copy.
 | `airflow.svg` | the paths inside `AIRFLOW_SRC_VIEWBOX`, filtered to the pinwheel's own nine fills |
 | `jupyter.png` | fills `#f37726`, `#767677` |
 | `github.png` | fill `#24292f` |
-| `notebook.png` | fill `#01a88d` — the Service Workflows glyph, used in **two** places (Earthdata GIS and Data Processing) |
+| `notebook.png` | fill `#01a88d` — the Service Workflows glyph, used in **two** places (Federal Partners and Data Processing) |
 | `listserv.png` | fills `#f58535`, `#9d5125`, `#fff` — 9 paths, near inner (2288, 406) |
 | `myst.png` | fills `#e6d478`, `#fff` — 2 paths, near inner (2520, 404) |
 
@@ -92,6 +92,30 @@ Two ways this goes quietly wrong, both of which produce a *plausible* icon:
 Airflow stays `.svg` because it is **inlined and rotated** per frame —
 `_load_airflow_blades()` reads the file and splices its paths into each frame.
 The others are rasterised, because `img()` emits `<image href>`.
+
+## What is not in the export at all
+
+`disasters.png` — the NASA Disasters spiral, worn by the three Disasters slots
+in Funded Projects & Partners. It is not in the Lucidchart export in any form,
+so it is fetched rather than recovered:
+
+```bash
+curl -sSLO https://raw.githubusercontent.com/NASA-IMPACT/veda-ingest-ui/main/public/Disasters_Wordmark_White.svg
+```
+
+That is the same mark the VEDA Ingest UI tile (`bA.jpg`) shows, and it needs two
+changes before it can sit on a light box:
+
+1. **Keep only the first `<g>`.** The file is two groups — the spiral (2 paths)
+   and the letters of "NASA DISASTERS" (13 paths, one per glyph). The full
+   wordmark is 3.6:1, and three of those do not fit the funded row at any
+   legible size; the spiral alone is square and slots in beside the meatball.
+2. **Recolour `.cls-1` from `#fff` to `#0b3d91`.** It is a one-colour mark
+   published only in white, and white is invisible on `FILL_FUNDED`. `#0b3d91`
+   is the meatball's own blue, which ties the four slots together.
+
+Then `rsvg-convert -h 600` and `magick -trim +repage` — the viewBox is the
+wordmark's, so the trim is what crops it to the spiral.
 
 ## Screenshots
 
