@@ -1,6 +1,6 @@
 # svg-flow-animator
 
-Build animated diagram GIFs by generating SVG frames.
+Build animated diagram GIFs and APNGs by generating SVG frames.
 
 Describe a diagram once as coordinates, emit one standalone SVG per frame,
 rasterise with librsvg, assemble with ffmpeg. The output drops straight into
@@ -46,7 +46,10 @@ brew install librsvg ffmpeg     # rsvg-convert, ffmpeg
 | `geometry` | Polyline maths, easing, and collision-aware label placement |
 | `svg` | Element emitters. String-based; frames are write-once |
 | `timeline` | `Stage` objects, flow connectors, pulses, auto-placed callouts |
-| `render` | Parallel rasterisation and GIF assembly |
+| `render` | Parallel rasterisation, GIF and APNG assembly |
+| `workflow` | Declared workflow diagrams: reusable components, automatic layout, beat-by-beat animation |
+| `gantt` | A Gantt timeline, animated bar by bar |
+| `gantt_editor` | A browser page for a timeline's dates: drag the bars or type them |
 | `overrides` | Hand-tunable geometry, and the handle registry the editor reads |
 | `editor` | Generates a browser editor from that registry — for any project, not one diagram |
 | `styles` | `FLAT` and `SKETCH` drawing backends behind one interface |
@@ -190,6 +193,41 @@ give you different artwork on every run.
 Fonts: Excalidraw's own face is Excalifont (SIL OFL). If it is not installed the
 stack falls back through Noteworthy and Chalkboard SE. End the stack with
 `sans-serif`, **not** `cursive` — on macOS `cursive` resolves to Zapfino.
+
+## Workflow diagrams and timelines, declared
+
+A box-and-arrow workflow needs no coordinates at all. Declare it, and `workflow`
+lays it out, draws it in either style, and animates it beat by beat:
+
+```python
+from svg_flow_animator import workflow as wf
+
+PERSON = wf.Component(shape="pill")                   # a look, defined once
+TASK = wf.Component(fill="#a5d8ff", stroke="#1971c2")
+
+d = wf.Diagram("Who reviews what")
+d.node("io", "Code review", TASK, detail="reading files, COG conversion")
+d.node("ana", "Ana", PERSON)
+d.edge("ana", "io")                                   # drawn in its task's colour
+d.group("Reviewers", ["ana"])
+d.beat("io")                                          # one step of the animation
+```
+
+Columns come from the edges, each column is ordered to keep lines from
+crossing, and the canvas is fitted to 16:9. That is only the default: every node
+is an `ov.rect`, so the editor moves and resizes any of them, and the lines and
+group frames follow because they are derived rather than stored.
+
+`gantt` draws the timeline that goes with it, from dates instead of coordinates,
+and `gantt_editor` is a browser page for those dates: drag a bar along the axis
+or type them, and Save writes a small `schedule.json`. It shares the layout
+editor's live-preview server through `serve`'s `routes=`.
+
+Both export through `render.export()`: an APNG of the animation plus a 2x
+still. APNG keeps full colour, so nothing dithers the hachure fills the way a
+128-colour GIF palette does. Software that cannot play APNG shows frame 0, so
+both animations open, and close, on the finished picture.
+[`examples/s2_landsat_review/`](examples/s2_landsat_review/) is a complete one.
 
 ## Things that will bite you
 

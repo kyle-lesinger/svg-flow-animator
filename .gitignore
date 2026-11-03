@@ -7,6 +7,16 @@ frames/
 out/
 *.gif
 !docs/*.gif
+*.apng
+
+# s2_landsat_review: its stills, and the editors (each embeds a render)
+examples/s2_landsat_review/review-*.png
+examples/s2_landsat_review/editor.html
+examples/s2_landsat_review/timeline.html
+examples/s2_landsat_review/.editor.*
+examples/s2_landsat_review/_preview_*
+# real names; the committed table is placeholders (this repo is public)
+examples/s2_landsat_review/people.local.json
 
 # managed_services: screenshots are of a live NASA system and not ours to
 # publish; the editor embeds them in its backdrop

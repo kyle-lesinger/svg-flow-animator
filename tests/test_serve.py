@@ -170,5 +170,54 @@ class TestSaveAndValidation(TestServe):
         self.assertEqual(code, 404)
 
 
+class TestExtraRoutes(unittest.TestCase):
+    """`routes=` lets a second editor (the timeline's) share the server."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp(prefix="sfa-routes-")
+        self.saved = os.path.join(self.dir, "overrides.json")
+        with open(self.saved, "w") as fh:
+            fh.write(SAVED)
+
+        def echo(data):
+            if data.get("fail"):
+                raise ValueError("refused on purpose")
+            return {"got": data}
+
+        base = serve.make_handler(self.dir, "scene_mod", (40, 30), routes={"/x/echo": echo})
+
+        class Quiet(base):
+            def log_message(self, *a):
+                pass
+
+        self.srv = ThreadingHTTPServer(("127.0.0.1", 0), Quiet)
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+        self.base = "http://127.0.0.1:%d" % self.srv.server_address[1]
+
+    def tearDown(self):
+        self.srv.shutdown()
+        self.srv.server_close()
+        shutil.rmtree(self.dir)
+
+    post = TestServe.post
+
+    def test_a_route_gets_the_request_and_returns_its_answer(self):
+        # No "overrides" key: that requirement belongs to /render and /save.
+        code, j = self.post("/x/echo", {"dates": {"a": 1}})
+        self.assertEqual(code, 200)
+        self.assertEqual(j, {"got": {"dates": {"a": 1}}})
+
+    def test_an_error_in_a_route_comes_back_as_400_with_its_message(self):
+        code, j = self.post("/x/echo", {"fail": True})
+        self.assertEqual(code, 400)
+        self.assertIn("refused on purpose", j["error"])
+
+    def test_the_built_in_endpoints_are_untouched(self):
+        code, _j = self.post("/save", {"overrides": [1]})
+        self.assertEqual(code, 400)
+        with open(self.saved) as fh:
+            self.assertEqual(fh.read(), SAVED)
+
+
 if __name__ == "__main__":
     unittest.main()

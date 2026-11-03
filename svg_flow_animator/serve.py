@@ -37,6 +37,11 @@ page colour behind it. `path` is always inside `project_dir`: librsvg refuses
 an <image href> outside the referencing document's own directory, silently, so
 a scene written to a temp dir loses every sprite. `preview_svg` is also where
 sprites must be staged -- nothing else here will do it.
+
+EXTRA ROUTES. `routes={"/path": fn}` adds POST endpoints beside those two:
+fn(request JSON) returns the response JSON, and an exception it raises comes
+back as {"error": ...} with a 400. That is how a second editor -- the
+timeline's (`gantt_editor`) -- shares this server and its port.
 """
 import base64
 import json
@@ -95,8 +100,9 @@ def render_scene(project_dir, module, canvas, overrides, style, min_png=0):
 
 
 def make_handler(project_dir, module, canvas, min_png=0,
-                 overrides_name="overrides.json"):
+                 overrides_name="overrides.json", routes=None):
     """The request handler class, separate from `serve` so tests can bind it."""
+    routes = dict(routes or {})
 
     class Handler(SimpleHTTPRequestHandler):
         def __init__(self, *a, **kw):
@@ -132,11 +138,17 @@ def make_handler(project_dir, module, canvas, min_png=0,
             except (ValueError, OSError) as exc:
                 return self._json(400, {"error": f"unreadable request: {exc}"})
 
+            route = self.path.rstrip("/")
+            if route in routes:
+                try:
+                    return self._json(200, routes[route](data))
+                except Exception as exc:                   # surface it, don't swallow
+                    return self._json(400, {"error": str(exc)})
+
             overrides = data.get("overrides") if isinstance(data, dict) else None
             if not isinstance(overrides, dict):
                 return self._json(400, {"error": "overrides must be an object"})
 
-            route = self.path.rstrip("/")
             if route == "/render":
                 style = data.get("style") if data.get("style") in STYLES else "flat"
                 try:
@@ -159,12 +171,14 @@ def make_handler(project_dir, module, canvas, min_png=0,
     return Handler
 
 
-def serve(project_dir, module, canvas, port=None, min_png=0, page="editor.html"):
+def serve(project_dir, module, canvas, port=None, min_png=0, page="editor.html",
+          routes=None):
     """Serve `project_dir` with live preview until Ctrl-C."""
     project_dir = os.path.abspath(project_dir)
     port = int(port or os.environ.get("FLOWGIF_PORT", "8750"))
     srv = ThreadingHTTPServer(("127.0.0.1", port),
-                              make_handler(project_dir, module, canvas, min_png))
+                              make_handler(project_dir, module, canvas, min_png,
+                                           routes=routes))
     print(f"flowgif editor  ->  http://localhost:{port}/{page}")
     print("   POST /render  live preview   POST /save  write overrides.json")
     print("   Ctrl-C to stop", flush=True)

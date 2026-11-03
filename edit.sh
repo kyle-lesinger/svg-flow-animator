@@ -8,6 +8,7 @@
 #   ./edit.sh disasters --stop   stop its preview server
 #   ./edit.sh managed            the Managed Services / External accounts walkthrough
 #   ./edit.sh shared             the Shared Data System Capabilities variant
+#   ./edit.sh review             the S2 & Landsat review: timeline dates and layout
 #
 # Anything after the example name is passed straight through.
 set -euo pipefail
@@ -27,8 +28,11 @@ case "${1:-}" in
   shared|shared_services)
     shift
     exec "$D/examples/shared_services/edit.sh" "$@" ;;
+  review|s2_landsat_review)
+    shift
+    exec "$D/examples/s2_landsat_review/edit.sh" "$@" ;;
   -h|--help)
-    sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
   *)
     # No example named -- default to minimal and pass the flags through.
     exec "$D/examples/minimal/edit.sh" "$@" ;;

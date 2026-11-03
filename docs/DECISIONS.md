@@ -149,3 +149,33 @@ is asserted, so the pipeline fails loudly instead of shipping a wrong picture.
 The corollary: a guard pointed at the wrong artefact (frame 0, which has no
 animation) passes forever and is worse than none, because it manufactures
 confidence.
+
+## APNG for declared diagrams, and what made one small
+
+APNG keeps full colour: the paper tone, the hachure fills and anti-aliased
+edges come through as rendered, with no 128-colour palette to dither them.
+Measured on the review workflow at 1600x900 (335 frames; 329 for the last row):
+
+| change | size |
+| --- | --- |
+| `-pix_fmt rgb24` | 25.7 MB |
+| `-pix_fmt rgba` | 10.4 MB |
+| `rgba` + `-pred mixed` | 9.8 MB |
+| receding held flat between beats, fades 7 -> 4 frames | **8.1 MB** |
+
+RGBA wins even though every frame is opaque: with an alpha channel the encoder
+can store a frame as only its changed pixels, the rest transparent over the
+previous one. Without it, a frame stores its whole changed rectangle.
+
+The animation mattered as much as the encoder. Per-frame bytes put almost all
+the weight on frames where the whole picture changes at once: easing the
+receding back to full between beats repainted every hatched box each time,
+about 150-350 KB a frame against ~20 KB for a frame where only lines move.
+Holding the receding flat across the beats, and crossfading only the focus,
+removed those swings -- and on its own made the file *bigger*, 12.0 MB: the
+line reset and the receding now faded in together, so those frames repainted
+everything at once, and every crossfade still ran 7 frames. Shortening the
+fades to 4 frames is what brought it down to 8.1 MB.
+
+For comparison, the GIFs in this repo run 12.9 MB (managed_services) and
+27 MB (disasters_ingest).
