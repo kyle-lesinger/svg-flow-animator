@@ -31,11 +31,15 @@ svg_flow_animator/     the reusable package
   overrides.py         hand-tunable geometry + handle registry
   editor.py            generates a browser editor from that registry
   serve.py             live-preview server behind an editor (/render, /save)
-  render.py            parallel rasterisation, GIF assembly
+  render.py            parallel rasterisation, GIF / APNG assembly, export()
+  workflow.py          declared workflow diagrams: components, auto-layout, beats
+  gantt.py             Gantt timeline, animated bar by bar
+  gantt_editor.py      browser page for a timeline's dates (schedule.json)
 examples/minimal/      self-contained demo, no external artwork
 examples/disasters_ingest/   the real diagram this was built for
 examples/managed_services/   Managed Services / External accounts walkthrough
 examples/shared_services/    the same story with a shared-capabilities box
+examples/s2_landsat_review/  who reviews what (workflow) and when (gantt), as APNGs
 docs/                  ARCHITECTURE, DECISIONS, GOTCHAS, ASSETS
 ```
 
@@ -47,7 +51,7 @@ an example calling `editor.build(...)`.
 ## Run / verify
 
 ```bash
-python3 tests/run.py                                 # 318 tests, ~12s
+python3 tests/run.py                                 # 376 tests, ~10s
 python3 examples/minimal/demo.py                     # full pipeline, ~360 frames
 python3 examples/minimal/demo.py --style=sketch      # hand-drawn variant
 python3 -m compileall svg_flow_animator examples     # syntax
@@ -75,6 +79,7 @@ Launching an editor, from the repo root:
 ./edit.sh disasters --stop   # stop its preview server
 ./edit.sh managed            # managed_services, live preview
 ./edit.sh shared             # shared_services, live preview
+./edit.sh review             # s2_landsat_review: timeline dates + layout, live
 ```
 
 Each example also has its own `edit.sh`; the root one only dispatches. The

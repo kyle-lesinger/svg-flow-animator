@@ -216,3 +216,10 @@ End a handwriting font stack with `sans-serif`, never `cursive`.
 A check that runs against frame 0 sees no animated content, because frame 0 is
 before any stage starts. It will pass forever. Point guards at a frame that
 actually contains what they are checking.
+
+## ffmpeg's APNG plays once and stops
+
+The `apng` muxer's `-plays` defaults to **1**, not "loop forever". The file is
+valid and animates, and stops on its last frame, so it looks right until you
+watch it to the end. `render.build_apng()` passes `-plays 0`; `probe_apng()`
+reads the loop count back from the acTL chunk, so it can be asserted on.

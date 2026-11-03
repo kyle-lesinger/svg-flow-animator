@@ -30,7 +30,10 @@ frame 417 and nowhere else.
 | `overrides` | Hand-tunable geometry + the handle registry |
 | `editor` | Generates a browser editor from that registry |
 | `serve` | Live-preview server behind an editor |
-| `render` | Parallel rasterisation and GIF assembly |
+| `render` | Parallel rasterisation, GIF and APNG assembly |
+| `workflow` | Declared workflow diagrams: components, automatic layout, beats |
+| `gantt` | A Gantt timeline, animated bar by bar |
+| `gantt_editor` | A browser page for a timeline's dates, served through `serve` |
 
 ## The handle registry
 
@@ -210,3 +213,25 @@ fresh, because a layout resolves its geometry once at import and a style is
 picked once too. The module reads `FLOWGIF_STYLE` and `FLOWGIF_OVERRIDES` and
 defines `preview_svg(path) -> background`; the full contract is in the
 `serve` module docstring.
+
+## Declared diagrams
+
+`workflow` and `gantt` invert the usual arrangement: instead of a layout file of
+coordinates, a diagram is declared as data and the coordinates are derived.
+
+- **Workflow.** Columns come from the edges (longest path; an edge closing a
+  cycle is left out), each column is ordered by barycentre sweeps that keep the
+  arrangement with the fewest crossings, and the canvas is fitted to the
+  requested aspect. Each node then resolves through `ov.rect`, so the derived
+  layout is only the default and the ordinary editor tunes it. Lines, their
+  ports and group frames are computed from the resolved nodes every time and
+  never stored, so nothing can detach.
+- **Gantt.** Rows are keyed, a schedule is `{key: (start, end)}`, and the
+  geometry follows from the dates. Its editor is not the handle editor --
+  dates are not coordinates -- but a page of its own that posts candidate
+  schedules to routes on the same server (`serve(routes=...)`) and writes
+  `schedule.json` only on Save.
+
+Both animations open and close on the finished picture: frame 0 is what any
+viewer without APNG support shows, and matching the last frame to it gives the
+loop no seam.

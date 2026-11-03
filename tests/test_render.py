@@ -8,9 +8,11 @@ frame directory so hrefs resolve at all.
 """
 import os
 import shutil
+import struct
 import sys
 import tempfile
 import unittest
+import zlib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
@@ -167,6 +169,82 @@ class TestRenderFramesGuards(StagingCase):
         with self.assertRaises(RuntimeError) as cm:
             render.render_frames(self.frames, 100, 100)
         self.assertIn("no frame SVGs", str(cm.exception))
+
+
+def _chunk(kind, data):
+    body = kind + data
+    return (struct.pack(">I", len(data)) + body
+            + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF))
+
+
+def apng_bytes(declared, fctl, plays=0):
+    """A chunk sequence shaped like an APNG: acTL declaring `declared` frames,
+    followed by `fctl` frame-control chunks."""
+    ihdr = struct.pack(">IIBBBBB", 32, 24, 8, 6, 0, 0, 0)
+    out = [b"\x89PNG\r\n\x1a\n", _chunk(b"IHDR", ihdr),
+           _chunk(b"acTL", struct.pack(">II", declared, plays))]
+    for i in range(fctl):
+        out.append(_chunk(b"fcTL", struct.pack(">I", i) + bytes(22)))
+        out.append(_chunk(b"IDAT" if i == 0 else b"fdAT", b"\x00" * 8))
+    out.append(_chunk(b"IEND", b""))
+    return b"".join(out)
+
+
+class TestProbeApng(StagingCase):
+    def write(self, data):
+        p = os.path.join(self.tmp, "x.apng")
+        with open(p, "wb") as fh:
+            fh.write(data)
+        return p
+
+    def test_reads_frames_size_and_loop_count_from_the_chunks(self):
+        info = render.probe_apng(self.write(apng_bytes(3, 3, plays=0)))
+        self.assertEqual((info["frames"], info["plays"], info["width"], info["height"]),
+                         (3, 0, 32, 24))
+
+    def test_a_still_png_is_not_an_animation(self):
+        with self.assertRaises(ValueError) as cm:
+            render.probe_apng(self.write(sup.png_bytes(4, 4)))
+        self.assertIn("acTL", str(cm.exception))
+
+    def test_a_header_that_disagrees_with_its_frames_is_caught(self):
+        with self.assertRaises(ValueError):
+            render.probe_apng(self.write(apng_bytes(5, 2)))
+
+
+@sup.needs_ffmpeg
+class TestBuildApng(StagingCase):
+    def test_assembles_a_looping_apng_with_every_frame(self):
+        for i, rgb in enumerate(((200, 30, 30), (30, 200, 30), (30, 30, 200))):
+            with open(os.path.join(self.frames, f"f{i:04d}.png"), "wb") as fh:
+                fh.write(sup.png_bytes(16, 12, rgb))
+        out = render.build_apng(self.frames, os.path.join(self.tmp, "o.apng"), fps=5,
+                                width=16, height=12)
+        info = render.probe_apng(out)
+        # plays=0 is "forever"; ffmpeg's own default plays once and stops.
+        self.assertEqual((info["frames"], info["plays"], info["width"]), (3, 0, 16))
+
+
+@sup.needs_rsvg
+@sup.needs_ffmpeg
+class TestExport(StagingCase):
+    def test_writes_the_animation_and_a_double_size_still(self):
+        def frame(f):
+            # Enough detail to clear render_frames' "rendered empty" floor,
+            # which a flat colour does not.
+            shift = 0 if f is None else 7 * (f + 1)
+            dots = "".join(f'<circle cx="{(i * 37 + shift) % 200}" cy="{(i * 53) % 150}" '
+                           f'r="{3 + i % 5}" fill="#{(i * 2654435761) % 0xFFFFFF:06x}"/>'
+                           for i in range(120))
+            return ('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150">'
+                    f'<rect width="200" height="150" fill="#fdfcf8"/>{dots}</svg>')
+        base = os.path.join(self.tmp, "chart")
+        info = render.export(frame, 3, (200, 150), base, self.frames)
+        self.assertEqual(info["frames"], 3)
+        with open(base + ".png", "rb") as fh:
+            head = fh.read(24)
+        self.assertEqual(struct.unpack(">II", head[16:24]), (400, 300))
+        self.assertFalse(os.path.exists(os.path.join(self.frames, "_still.svg")))
 
 
 if __name__ == "__main__":
