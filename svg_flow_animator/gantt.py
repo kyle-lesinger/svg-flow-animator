@@ -14,6 +14,10 @@ or before the first start to the Monday after the last end, a tick a week.
 
 `draft=True` stamps the chart, so placeholder dates cannot pass for a plan.
 
+A row's `note` (its reviewers, say) is written INSIDE its bar. When one line
+will not fit, it breaks at its commas -- a name is never split -- and the bar
+grows taller to hold the lines; only then does the type step down.
+
 Rows are keyed, so a schedule is just {key: (start, end)}: `retimed()` swaps
 one in, and `gantt_editor` edits one in the browser.
 
@@ -27,12 +31,13 @@ from datetime import timedelta
 
 from . import svg
 from .geometry import label_width, smooth
+from .workflow import _dark
 
 __all__ = ["Gantt"]
 
 LABEL_SIZE, LABEL_LH = 19, 24
 DETAIL_SIZE, DETAIL_LH = 14, 18
-NOTE_SIZE = 16
+NOTE_SIZE, NOTE_MIN, NOTE_PAD = 16, 11, 12   # names inside a bar
 HEADING, HEADING_BLOCK, AXIS_H = 32, 84, 44
 MUTED, GRID, DRAFT_INK = "#868e96", "#ced4da", "#e03131"
 DRAFT_TEXT = "DRAFT: placeholder dates"
@@ -48,7 +53,7 @@ class Gantt:
         self.rows = []
 
     def row(self, key, label, start, end, stroke, fill, detail=None, note=None):
-        """One bar. `detail` may hold "\\n"; `note` is written beside the bar."""
+        """One bar. `detail` may hold "\\n"; `note` is written inside the bar."""
         if any(r["key"] == key for r in self.rows):
             raise ValueError(f"row {key!r} is declared twice")
         if end < start:
@@ -94,12 +99,17 @@ class Gantt:
         bar_h = min(46.0, row_h * 0.48)
         top = max(m, (h - HEADING_BLOCK - AXIS_H - len(self.rows) * row_h) / 2)
         rows_y = top + HEADING_BLOCK + AXIS_H
-        bars = [(x0 + (r["start"] - a).days * ppd,
-                 rows_y + i * row_h + (row_h - bar_h) / 2,
-                 ((r["end"] - r["start"]).days + 1) * ppd, bar_h)
-                for i, r in enumerate(self.rows)]
+        bars, notes = [], []
+        for i, r in enumerate(self.rows):
+            bw = ((r["end"] - r["start"]).days + 1) * ppd
+            lines, size = (_fit(r["note"], bw - 2 * NOTE_PAD, row_h - 8) if r["note"]
+                           else ([], NOTE_SIZE))
+            bh = min(row_h - 8, max(bar_h, len(lines) * size * 1.3 + 16))
+            bars.append((x0 + (r["start"] - a).days * ppd,
+                         rows_y + i * row_h + (row_h - bh) / 2, bw, bh))
+            notes.append((lines, size))
         return dict(x0=x0, x1=x1, ppd=ppd, a=a, b=b, top=top, rows_y=rows_y,
-                    row_h=row_h, bars=bars)
+                    row_h=row_h, bars=bars, notes=notes)
 
     def editor_layout(self):
         """What a browser needs to turn a drag into days: the canvas, where the
@@ -177,6 +187,12 @@ class Gantt:
             shown, grown = self._bar_state(i, f, begins)
             bar = st.box(bx, by, bw, bh, r["fill"], stroke=r["stroke"], rx=6, sw=2,
                          key=("bar", i))
+            lines, size = lay["notes"][i]
+            ink = "#ffffff" if _dark(r["fill"]) else st.ink
+            ty = by + (bh - len(lines) * size * 1.3) / 2
+            for j, s in enumerate(lines):
+                bar += st.text(bx + NOTE_PAD, ty + size * 1.3 * (j + 0.5) + size * 0.36, s,
+                               size, fill=ink)
             out.append(svg.group(bar, opacity=shown))
             if grown is not None:
                 # Reveal the finished bar rather than redraw a shorter one: a
@@ -185,19 +201,30 @@ class Gantt:
                            f'y="{by - 8:.1f}" width="{(bw + 16) * grown:.1f}" '
                            f'height="{bh + 16:.1f}"/></clipPath>'
                            f'<g clip-path="url(#grow{i})">{bar}</g>')
-            if r["note"]:
-                nw = label_width(r["note"], NOTE_SIZE)
-                if bx + bw + 14 + nw <= x1 + m / 2:      # after the bar
-                    nx, anchor = bx + bw + 14, "start"
-                elif bw >= nw + 28:                      # inside it
-                    nx, anchor = bx + 14, "start"
-                else:                                    # before it
-                    nx, anchor = bx - 14, "end"
-                note_op = shown if grown is None else max(GHOST, smooth((grown - 0.7) / 0.3))
-                out.append(st.text(nx, cy + NOTE_SIZE * 0.36, r["note"], NOTE_SIZE,
-                                   fill=st.ink, anchor=anchor, opacity=note_op))
         return "".join(out)
 
     def frame_svg(self, f, st):
         """One whole SVG document; f=None is the finished chart."""
         return svg.document(*self.size, self.scene(f, st), st.bg)
+
+
+def _fit(note, room, max_h):
+    """
+    `note` broken at its commas into lines no wider than `room` px, at the
+    largest size from NOTE_SIZE down to NOTE_MIN whose lines also stack within
+    `max_h`. A bar too short for one name even at NOTE_MIN gets that anyway:
+    there is no smaller honest option than overflowing.
+    """
+    parts = [p.strip() for p in note.split(",") if p.strip()]
+    for size in range(NOTE_SIZE, NOTE_MIN - 1, -1):
+        lines, cur = [], []
+        for p in parts:
+            if cur and label_width(", ".join(cur + [p]) + ",", size) > room:
+                lines.append(", ".join(cur) + ",")
+                cur = []
+            cur.append(p)
+        lines.append(", ".join(cur))
+        if (all(label_width(s, size) <= room for s in lines)
+                and len(lines) * size * 1.3 + 16 <= max_h):
+            return lines, size
+    return lines, NOTE_MIN

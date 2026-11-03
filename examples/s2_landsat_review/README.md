@@ -5,7 +5,7 @@ Who reviews what, and when, as two hand-drawn animations.
 | picture | shows |
 | --- | --- |
 | `review-workflow.apng` / `.png` | reviewers -> review tasks -> the algorithms; the animation walks the tasks in schedule order |
-| `review-timeline.apng` / `.png` | a Gantt of the same tasks, bars growing in date order, reviewers named on each |
+| `review-timeline.apng` / `.png` | a Gantt of the same tasks, bars growing in date order, each with its reviewers inside it |
 
 The `.apng` files are the animations, and the `.png` files are 3200x1800
 stills. Both are build products, so they are not committed.

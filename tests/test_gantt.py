@@ -91,6 +91,34 @@ class TestGantt(unittest.TestCase):
         self.assertIn("<clipPath", mid)
         sup.parse_fragment(g.scene(begins[0] + gantt.GROW // 2, st))
 
+    def test_names_sit_inside_their_bar(self):
+        g = chart()
+        lay = g.layout()
+        for (bx, by, bw, bh), (lines, size), r in zip(lay["bars"], lay["notes"], g.rows):
+            if not r["note"]:
+                self.assertEqual(lines, [])
+                continue
+            self.assertEqual(" ".join(lines), r["note"])        # nothing dropped
+            for s in lines:
+                self.assertLessEqual(gantt.label_width(s, size), bw - 2 * gantt.NOTE_PAD, s)
+            self.assertLessEqual(len(lines) * size * 1.3, bh)
+
+    def test_a_short_bar_breaks_names_at_commas_and_grows_to_hold_them(self):
+        g = gantt.Gantt("Plan")
+        g.row("a", "Short", date(2026, 11, 9), date(2026, 11, 13), "#e03131", "#ffc9c9",
+              note="Ana Long-Surname, Ben Long-Surname, Cy Long-Surname, Di Long-Surname")
+        g.row("b", "Long", date(2026, 11, 9), date(2026, 12, 31), "#1971c2", "#a5d8ff",
+              note="Ana")
+        lay = g.layout()
+        (_, _, _, short_h), (_, _, _, long_h) = lay["bars"]
+        lines, _ = lay["notes"][0]
+        self.assertGreater(len(lines), 1)
+        self.assertGreater(short_h, long_h)
+        for s in lines:                                         # a name is never split
+            self.assertTrue(all(p.strip().endswith("Long-Surname")
+                                for p in s.split(",") if p.strip()), s)
+        self.assertIn("Di Long-Surname", g.frame_svg(None, styles.SKETCH))
+
     def test_editor_layout_is_plain_json(self):
         lay = chart().editor_layout()
         self.assertEqual(json.loads(json.dumps(lay)), lay)
