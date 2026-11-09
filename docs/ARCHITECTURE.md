@@ -130,6 +130,78 @@ thing on the canvas — so out-of-scope flows recede with the block they serve.
 buildable list is still derived from the handle registry, so adding an
 `ov.rect("box.*")` still makes a section without touching the builder.
 
+### The slides are the sections that are not boxes
+
+`slides()` lists them, by hand, ahead of the derived sections. Each is its own
+picture with its own timeline, plays once, and ends on its finished picture.
+
+`intro` opens the story: STAC alone on an empty canvas, then a benefits panel
+either side of it (open-source community, then NASA), each highlighted while its
+points arrive, one every 5 seconds. It is listed by hand, first, ahead of the
+derived sections.
+
+It breaks two rules above on purpose. It does not show the whole canvas,
+because it is the moment *before* the diagram. And it is not on the one timeline:
+it has its own (`INTRO_TOTAL`, ~35s), because prepending it to `_SPEC` would
+shift every chapter's span and change the full GIF, and nothing in it travels
+along a flow.
+
+The slides **play once** (`section_gif()`, which `build.sh` reads for ffmpeg's
+`-loop` and the palette). The last frame is what stays on screen, so each ends
+on its whole picture with nothing fading out. `build.sh` checks the GIF itself
+for the NETSCAPE2.0 loop extension, since a wrong flag still builds a valid GIF.
+
+The intro's panels are derived from `BOX_STAC` rather than registered as
+handles: the editor previews frame 0 of the main film, where they do not exist.
+The journey's geometry stays in `journey.py` for the same reason.
+
+`journey` poses the problem and the fix on one canvas. Satellites on their own
+orbits (Landsat 9, NOAA-20, the ISS) paint swaths on a Blue Marble globe; each
+peels off as a dataset in its own format (GeoTIFF, NetCDF, HDF5) and is
+copied into the Disasters PORTAL and MMGIS until there are datasets x tools
+copies -- capped at three datasets (`N_DUP`). Then each is converted once to
+COG and stored once, STAC indexes them, and both tools read in place; a
+fourth satellite's file (HDF4) arrives after the fix as one file and one item.
+
+MMGIS draws the swaths on a flat map cropped from the globe's own texture,
+placed by latitude and longitude against the crop's exact extent
+(`flat_extent()` snaps it to whole texture pixels and returns what those pixels
+cover). The PORTAL is a website, drawn as its pages; a screenshot has no
+extent, so data appears there as a chip per dataset rather than an overlay. The tools never move between problem and fix, so the reader
+compares the same two boxes. The beats overlap (the next pass starts while the
+last copies land), so its timeline is frame numbers rather than a stage list.
+
+`bottleneck` names the bottleneck the architecture removed. Data pours into a
+funnel and queues behind a narrow neck carrying three stations, in the order
+the work happens -- download terabytes (moving the data), convert and analyze
+(time to decision), copy per tool (silos; a dot splits into copies there) --
+while a clock climbs to weeks. Then the neck opens and the architecture takes
+their place: cloud storage and COG, STAC (indexed once, interoperable), web
+apps. The queue is computed, not simulated: departures are
+fixed up front (FIFO, one through the neck per `SERVICE` frames) and every dot's
+position is a pure function of the frame, so frames render in any order.
+
+`story` tells the journey and the bottleneck once, in 45 seconds. A large
+globe is shown alone while satellites paint their swaths; it glides aside and
+data streams off it -- from wherever a satellite is scanning -- into the
+bottleneck's funnel (download, convert by hand, copy per tool). Each format is
+a SHAPE (GeoTIFF square, NetCDF triangle, NITF star, HDF5 diamond, HDF4
+cross), so "many formats" is seen rather than read. The NITF one is Umbra, a
+commercial SAR bought through CSDA: tasked, so it paints one framed scene
+rather than a swath, and side-looking, so its beam slants from a track off the
+scene's coast; when the neck opens, automated ingest turns
+every shape into the one circle -- cloud-optimized (COG) -- and only it does: the
+tests check no dot changes shape on the manual path, and none keeps its shape
+past ingest. The queue is the bottleneck's own (`funnel.py`), and HDF4 is a
+cross because a hexagon, at dot size, read as the COG circle.
+
+The globe is a raster -- `globe.py` projects the texture once, in pure Python,
+into a PNG cached under `frames/assets/` (librsvg's containment rule) and keyed
+on its size and centre. Everything that moves is vector. It is also the one
+GIF with a photograph in it, which is why `section_gif()` gives it 256 colours
+over the whole picture: at 128 weighted to change, the desert snapped to the
+swaths' oranges and read as fire.
+
 ## The poster
 
 `./build.sh --poster` renders one still of the settled diagram — nothing dimmed,

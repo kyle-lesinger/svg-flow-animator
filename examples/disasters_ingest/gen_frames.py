@@ -24,6 +24,11 @@ import rough as R
 from style import S
 from svg_flow_animator.geometry import fit_viewbox
 
+# journey.py imports this module for its drawing helpers. Run as a script this
+# module is __main__, and that import would load the whole file a SECOND time
+# as "gen_frames" -- two copies of every timeline, one of them never used.
+sys.modules.setdefault("gen_frames", sys.modules[__name__])
+
 FPS = 15
 FONT_BUMP = 4                   # every label four points larger, for projection
 FADE = 7                        # frames to fade a bubble in / out
@@ -207,13 +212,41 @@ SECTION_PREFIX = "box."
 # the same run of the story.
 SECTION_SKIP = frozenset(("ingest", "stac", "funded"))
 
+# The opening SLIDES are sections that are not boxes of the diagram: each is
+# its own picture with its own timeline, told before the diagram exists, so
+# there is no rect to derive them from. They are listed by hand, first.
+INTRO = "intro"
+JOURNEY = "journey"
+BOTTLENECK = "bottleneck"
+STORY = "story"
+
+
+def slides():
+    """
+    {key: (label, render(f), total frames)}, in story order.
+
+    Resolved at call time: intro_svg is defined further down this file, and the
+    journey and bottleneck live in their own modules, which import this one
+    for its helpers.
+    """
+    import bottleneck
+    import journey
+    import story
+    return {INTRO: ("Why STAC", intro_svg, INTRO_TOTAL),
+            JOURNEY: ("Swath to every tool", journey.journey_svg,
+                      journey.TOTAL),
+            BOTTLENECK: ("The bottleneck, solved", bottleneck.bottleneck_svg,
+                         bottleneck.TOTAL),
+            STORY: ("Observe to decide", story.story_svg, story.TOTAL)}
+
 
 def sections():
-    """[(key, label, rect)] for every box in the registry, in declaration order."""
-    return [(k[len(SECTION_PREFIX):], h["label"], h["value"])
-            for k, h in ov.HANDLES.items()
-            if h["kind"] == "rect" and k.startswith(SECTION_PREFIX)
-            and k[len(SECTION_PREFIX):] not in SECTION_SKIP]
+    """[(key, label, rect)]: the slides, then every box in declaration order."""
+    return [(k, v[0], None) for k, v in slides().items()] + [
+        (k[len(SECTION_PREFIX):], h["label"], h["value"])
+        for k, h in ov.HANDLES.items()
+        if h["kind"] == "rect" and k.startswith(SECTION_PREFIX)
+        and k[len(SECTION_PREFIX):] not in SECTION_SKIP]
 
 
 def section_view(name):
@@ -243,6 +276,31 @@ GIF_SCALE = 0.8
 def _even(v):
     """ffmpeg is happier with even dimensions, and a GIF loses nothing to it."""
     return max(2, int(round(v / 2.0)) * 2)
+
+
+def section_loop(name=None):
+    """
+    ffmpeg's GIF `-loop` for a section: 0 repeats forever, -1 plays once.
+
+    The slides open the story and should stop on their finished picture, not
+    start over; every chapter of the diagram keeps looping.
+    """
+    return -1 if name in slides() else 0
+
+
+def section_gif(name=None):
+    """
+    (loop, palette colours, palettegen stats_mode) -- how build.sh encodes it.
+
+    The journey is the one picture with a photograph in it, and that globe
+    shares the GIF's single palette with five data colour ramps. At 128
+    colours weighted to what CHANGES, the desert snapped to the swaths'
+    oranges and read as fire; 256 colours over the whole picture fixes it,
+    and on these frames is smaller too.
+    """
+    if name in (JOURNEY, STORY):
+        return section_loop(name), 256, "full"
+    return section_loop(name), 128, "diff"
 
 
 def section_size(name=None):
@@ -309,7 +367,11 @@ def section_span(name):
     A section with no scope is the whole film. A section whose scope names no
     staged chapter -- Community, which has no automated data path -- gets a
     short still clip rather than 68 seconds of the same frame.
+
+    A slide is not on the main timeline at all -- it has its own.
     """
+    if name in slides():
+        return 0, slides()[name][2] - 1
     scope = SECTION_SCOPE.get(name)
     if scope is None:
         return 0, TOTAL - 1
@@ -1416,6 +1478,168 @@ def frame_svg(f, view=None, scope=None, captions=True):
     return "\n".join(parts)
 
 
+# ------------------------------------------------------------------ intro ---
+# Where the story starts: STAC alone at the centre of an empty canvas, then why
+# it matters, one side at a time. Every other section shows the whole diagram;
+# this one deliberately does not, because it is the moment BEFORE the diagram.
+#
+# It has its own short timeline rather than a run of _SPEC stages. Prepending
+# it to the main film would shift every chapter's span and change the full GIF,
+# and nothing here moves along a flow -- there is no stage for it to be.
+#
+# (side, heading, (point, ...)). Edit the wording here; the panels wrap and
+# space themselves, and tests/test_disasters_intro.py checks it still fits.
+# Keep a point to one line -- a slide with paragraphs on it is not read.
+INTRO_PANELS = (
+    ("left", "Open-source geospatial community", (
+        "One open standard for any geospatial data",
+        "Search any STAC catalog with the same API",
+        "Broad tooling: PySTAC, TiTiler, QGIS, GDAL",
+    )),
+    ("right", "Across NASA", (
+        "NASA Earthdata searchable through CMR-STAC",
+        "Used by VEDA, the U.S. GHG Center and MAAP",
+        "Cloud-native: stream COGs and Zarr directly",
+    )),
+)
+
+INTRO_FILL = "#f3fdf4"          # a whisper of STAC's own green
+INTRO_STAC_ALONE = 30           # STAC by itself before the first panel
+INTRO_BULLET_STEP = 5 * FPS     # every point arrives 5 seconds after the last
+INTRO_HOLD = 45                 # both panels up, nothing new arriving
+INTRO_PAD = 26                  # panel inner padding
+INTRO_INDENT = 30               # text clears the tick by this much
+# Larger than the diagram's labels: these panels ARE the narration here, and
+# the GIF is shown at 0.8 scale.
+INTRO_HEAD_SIZE = 18
+INTRO_POINT = (16, 26)          # (size, line height if a point wraps)
+INTRO_BULLET_GAP = 18
+
+
+def _intro_window(f, start, end):
+    """0..1: fades in over FADE from `start`, holds to `end`, fades out."""
+    if f < start or f > end + FADE:
+        return 0.0
+    if f < start + FADE:
+        return (f - start) / float(FADE)
+    if f <= end:
+        return 1.0
+    return 1.0 - (f - end) / float(FADE)
+
+
+def _intro_timeline():
+    """
+    Each panel's (start, active_end, [bullet starts]), and the total.
+
+    Every point arrives INTRO_BULLET_STEP after the one before it, including
+    across the change of panel, so the whole intro keeps one steady beat.
+    """
+    t, spans = INTRO_STAC_ALONE, []
+    for _side, _head, items in INTRO_PANELS:
+        bullets = [t + FADE + j * INTRO_BULLET_STEP for j in range(len(items))]
+        # The panel stays the subject until the next one's first point is
+        # due: the next panel fades in over FADE and lands it on the beat.
+        end = bullets[-1] + INTRO_BULLET_STEP - FADE
+        spans.append((t, end, bullets))
+        t = end
+    hold_end = t + INTRO_HOLD
+    # The intro plays ONCE (see section_loop), so its last frame is the one
+    # left on screen: it ends on the whole picture, with nothing fading out.
+    return spans, hold_end, hold_end + 1
+
+
+INTRO_SPANS, INTRO_HOLD_END, INTRO_TOTAL = _intro_timeline()
+
+
+def _wrap_chars(width, size, bold=False):
+    """
+    How many characters fit `width` at `size`.
+
+    0.48 em, not the 0.52 the caption bubbles use: measured on these panels,
+    Helvetica advances ~0.46 em and the sketch face ~0.39, so 0.52 wrapped a
+    third of the panel away. The sketch font_scale stays in -- its fallback
+    chain ends at faces wider than the one this machine resolves.
+    """
+    em = (size + FONT_BUMP) * S.font_scale * (0.55 if bold else 0.48)
+    return max(12, int(width / em))
+
+
+def _balanced_wrap(s, chars):
+    """Fewest lines that fit, then as even as those lines allow -- a lone word
+    on a second line reads as a mistake on a slide."""
+    lines = wrap(s, chars)
+    while chars > 12 and len(wrap(s, chars - 1)) == len(lines):
+        chars -= 1
+        lines = wrap(s, chars)
+    return lines
+
+
+def intro_layout(side, heading, points):
+    """
+    Every line of one panel, placed: [(bullet index or -1, x, y, text, size,
+    weight, ticked)]. Returned rather than drawn so a test can check the last
+    line clears the panel's floor in BOTH styles -- they wrap differently.
+    """
+    x, y, w, _h = L.intro_panel(side)
+    inner = w - 2 * INTRO_PAD - INTRO_INDENT
+    tx = x + INTRO_PAD + INTRO_INDENT
+    lines = [(-1, x + INTRO_PAD, y + 42, heading, INTRO_HEAD_SIZE, "bold",
+              False)]
+    by = y + 92
+    size, lh = INTRO_POINT
+    for j, point in enumerate(points):
+        for k, line in enumerate(_balanced_wrap(point, _wrap_chars(inner, size))):
+            lines.append((j, tx, by, line, size, "normal", k == 0))
+            by += lh
+        by += INTRO_BULLET_GAP
+    return lines
+
+
+def _tick(x, y, key):
+    """A check mark, through S so it is hand-drawn in sketch mode."""
+    return S.poly([(x, y - 6), (x + 6, y), (x + 17, y - 14)], L.FLOW, sw=3,
+                  key=key)
+
+
+def intro_svg(f):
+    """One frame of the intro: STAC alone, then its benefits, side by side."""
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{L.W}" '
+        f'height="{L.H}" viewBox="0 0 {L.W} {L.H}">',
+        f'<rect width="{L.W}" height="{L.H}" fill="{S.bg}"/>',
+    ]
+    # STAC is lit while it is alone, and again once both panels are up, so the
+    # last thing the reader is pointed at is the catalog the rest is built on.
+    stac_lit = max(_intro_window(f, 0, INTRO_STAC_ALONE - FADE),
+                   _intro_window(f, INTRO_SPANS[-1][1], INTRO_HOLD_END))
+    parts.append(halo(*L.BOX_STAC, strength=stac_lit))
+    parts.append(stac_static())
+
+    for (side, heading, items), (start, end, bullets) in zip(INTRO_PANELS,
+                                                             INTRO_SPANS):
+        shown = _intro_window(f, start, INTRO_HOLD_END)
+        if shown <= 0:
+            continue
+        x, y, w, h = L.intro_panel(side)
+        # The highlight is the panel being told; it moves on with the story.
+        parts.append(halo(x, y, w, h, strength=_intro_window(f, start, end)))
+        out = [box(x, y, w, h, INTRO_FILL)]
+        for j, lx, ly, s, size, weight, ticked in intro_layout(side, heading,
+                                                               items):
+            a = 1.0 if j < 0 else _intro_window(f, bullets[j], INTRO_HOLD_END)
+            if a <= 0:
+                continue
+            out.append(text(lx, ly, s, size, weight=weight, opacity=a))
+            if ticked:
+                out.append(f'<g opacity="{a:.3f}">'
+                           + _tick(x + INTRO_PAD, ly - 2, ("intro.tick", side, j))
+                           + '</g>')
+        parts.append(f'<g opacity="{shown:.3f}">' + "".join(out) + '</g>')
+
+    parts.append("</svg>")
+    return "\n".join(parts)
+
+
 def stage_assets():
     """
     Mirror assets/ into frames/assets/.
@@ -1457,10 +1681,12 @@ def section_frame(f, name):
     Two calls that must not drift apart -- a section rendered with its view but
     without its scope shows another chapter's motion inside its own frame.
     """
+    if name in slides():
+        return slides()[name][1](f)
     return frame_svg(f, section_view(name), SECTION_SCOPE.get(name))
 
 
-def write_frames(view=None, scope=None, span=None):
+def write_frames(view=None, scope=None, span=None, render=None):
     """
     Render frames into frames/. `span` is an inclusive (first, last) range.
 
@@ -1486,7 +1712,7 @@ def write_frames(view=None, scope=None, span=None):
     # it silently read nothing at all.
     for i, f in enumerate(range(first, last + 1)):
         with open(f"{L.FRAMES}/f{i:04d}.svg", "w", encoding="utf-8") as fh:
-            fh.write(frame_svg(f, view, scope))
+            fh.write(render(f) if render else frame_svg(f, view, scope))
     return last - first + 1
 
 
@@ -1496,7 +1722,8 @@ def main():
         for key, label, _rect in sections():
             vx, vy, vw, vh = section_view(key)
             rw, rh, gw, gh = section_size(key)
-            scope = ",".join(SECTION_SCOPE.get(key, ("all",)))
+            scope = ("own slide" if key in slides()
+                     else ",".join(SECTION_SCOPE.get(key, ("all",))))
             print("  %-14s %-22s view=(%d %d %d %d)  gif=%dx%d  moves=%s"
                   % (key, label, vx, vy, vw, vh, gw, gh, scope))
         return
@@ -1506,6 +1733,10 @@ def main():
     size_of = _arg(argv, "--section-size")
     if size_of is not None:
         print("%d %d %d %d" % section_size(size_of or None))
+        return
+    gif_of = _arg(argv, "--section-gif")
+    if gif_of is not None:
+        print("%d %d %s" % section_gif(gif_of or None))
         return
 
     # A single still of the whole ecosystem: everything settled, nothing
@@ -1521,9 +1752,9 @@ def main():
 
     name = _arg(argv, "--section")
     if name:
-        view = section_view(name)
+        section_view(name)                      # a typo fails here, loudly
         span = section_span(name)
-        n = write_frames(view, SECTION_SCOPE.get(name), span)
+        n = write_frames(span=span, render=lambda f: section_frame(f, name))
         print(f"wrote {n} frames -> {L.FRAMES}  (section '{name}', "
               f"frames {span[0]}..{span[1]}, {n/FPS:.1f}s at {FPS}fps)")
         return

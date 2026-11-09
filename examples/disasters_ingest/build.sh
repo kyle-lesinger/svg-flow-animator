@@ -50,7 +50,6 @@ OUT="${POSITIONAL:-$WD/disasters-data-flow.gif}"
 [ "$STYLE" = "$DEFAULT_STYLE" ] || OUT="${OUT%.gif}-${STYLE}.gif"
 
 FPS=15
-COLORS=128
 [ "$STYLE" = "sketch" ] && PAPER="#fdfcf8" || PAPER="white"
 
 # Build one GIF. $1 = output path, $2 = section key ("" for the whole diagram).
@@ -65,6 +64,10 @@ build_one() {
   # unrelated content to make the numbers come out.
   read -r RENDER_W RENDER_H GIF_W GIF_H < <(
     python3 "$WD/gen_frames.py" "--section-size=$section")
+  # Loop (0 forever, -1 once -- the slides stop on their finished picture) and
+  # the palette, which a section with a photograph in it needs more of.
+  read -r LOOP COLORS STATS < <(
+    python3 "$WD/gen_frames.py" "--section-gif=$section")
 
   echo "==> 1/4  generating frame SVGs  ($label, style=$STYLE)"
   if [ -n "$section" ]; then
@@ -104,18 +107,30 @@ build_one() {
 
   echo "==> 3/4  building palette + GIF at ${GIF_W}x${GIF_H} @ ${FPS}fps"
   # stats_mode=diff weights the palette toward what actually CHANGES between
-  # frames, which is what matters for a mostly-static diagram.
+  # frames, which is what matters for a mostly-static diagram. (The journey
+  # uses full: see section_gif() in gen_frames.py.)
   mkdir -p "$(dirname "$out")"
   ffmpeg -hide_banner -loglevel error -y \
     -framerate "$FPS" -i "$FRAMES/f%04d.png" \
     -filter_complex "\
       scale=${GIF_W}:${GIF_H}:flags=lanczos,split[a][b];\
-      [a]palettegen=max_colors=${COLORS}:stats_mode=diff[p];\
+      [a]palettegen=max_colors=${COLORS}:stats_mode=${STATS}[p];\
       [b][p]paletteuse=dither=bayer:bayer_scale=3:diff_mode=rectangle" \
-    -loop 0 "$out"
+    -loop "$LOOP" "$out"
 
   echo "==> 4/4  verifying"
   magick identify -format '%n frames, %wx%h\n' "$out" | head -1
+  # A GIF loops only if it carries the NETSCAPE2.0 extension. Check the file
+  # itself: a wrong flag still builds a perfectly good GIF that does the wrong
+  # thing, and nothing else would notice.
+  if LC_ALL=C grep -q NETSCAPE2.0 "$out"; then LOOPS=1; else LOOPS=0; fi
+  if [ "$LOOP" = "-1" ] && [ "$LOOPS" = "1" ]; then
+    echo "FAIL: $out should play once but loops"; exit 1
+  fi
+  if [ "$LOOP" = "0" ] && [ "$LOOPS" = "0" ]; then
+    echo "FAIL: $out should loop but plays once"; exit 1
+  fi
+  [ "$LOOP" = "-1" ] && echo "    plays once" || echo "    loops"
   ls -lh "$out" | awk '{print "    size: " $5}'
   echo "    done -> $out"
 }
