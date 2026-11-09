@@ -45,14 +45,11 @@ FIX_BEAT = 70
 CAPTIONS = (
     (0, "NASA, NOAA and commercial satellites watch Earth around the clock, "
         "each in its own format."),
-    (SQUEEZE, "All of it squeezes through one manual bottleneck."),
-    (NAME_STATIONS, "Download it, convert it by hand, copy it into every tool."),
-    (DECISIONS_WAIT, "Decisions wait weeks for the data."),
-    (OPEN_AT, "We automated it: a cloud-native workflow, end to end."),
-    (OPEN_AT + FIX_BEAT, "Any format in, cloud-optimized out, indexed once in "
-                         "interoperable STAC."),
-    (OPEN_AT + 2 * FIX_BEAT, "Every web tool reads the same data, in place."),
-    (OPEN_AT + 3 * FIX_BEAT - 5, "Actionable decisions in hours, not weeks."),
+    (SQUEEZE, "All of it squeezes through one manual bottleneck: download, "
+              "convert by hand, copy into every tool."),
+    (DECISIONS_WAIT, "Decisions wait weeks for the data, so we automated it: "
+                     "a cloud-native workflow, end to end."),
+    (OPEN_AT + FIX_BEAT, "Actionable decisions in hours, not weeks."),
 )
 STATION_LIT = [(NAME_STATIONS + 22 * k, DECISIONS_WAIT) for k in range(3)]
 
@@ -97,6 +94,9 @@ CAST = SATS[:2] + (UMBRA,) + SATS[2:]          # Umbra flies third: in the showc
 CAST_RAMPS = RAMPS[:2] + (("#4a5568", "#8a94a6", "#cbd2dc", "#ffffff"),) + RAMPS[2:]
 SHAPES = ("square", "triangle", "star", "diamond", "cross")
 COG_SHAPE = "circle"
+# Dots are see-through, as ONE group: the words and columns behind them stay
+# readable, and a packed queue is no darker than a single dot.
+DOT_ALPHA = 0.55
 # Each satellite's dots take a colour from its own swath's ramp -- sampled so
 # no two read alike (NOAA-20's viridis and Terra's greens both go green at .6).
 SAT_COLOR = [ramp_color(CAST_RAMPS[k], t)
@@ -425,16 +425,20 @@ def _legend(f, out):
     x = SMALL[0] - 150
     items = [(SHAPES[s], CAST[s]["fmt"], SAT_COLOR[s]) for s in range(len(CAST))]
     out.append('<g class="legend" opacity="%.3f">' % a)
-    for j, (shape, fmt, color) in enumerate(items):
-        out.append(glyph(shape, x + j * 76, LEGEND_Y, color, cls="key"))
-        out.append(G.text(x + j * 76 + 10, LEGEND_Y + 5, fmt, 10))
+    # Each item as wide as its own name, then one even gap. A fixed pitch left
+    # "NITF" with twice the air after it that "GeoTIFF" had.
+    cx = x
+    for shape, fmt, color in items:
+        out.append(glyph(shape, cx, LEGEND_Y, color, cls="key"))
+        out.append(G.text(cx + 10, LEGEND_Y + 5, fmt, 10))
+        cx += 10 + len(fmt) * (10 + G.FONT_BUMP) * S.font_scale * 0.5 + 22
     c = ramp(f, OPEN_AT + FIX_BEAT, OPEN_AT + FIX_BEAT + FADE)
     if c > 0:
         out.append('<g opacity="%.3f">' % c
                    + G.text(x + 52, LEGEND_Y + 34, "→ automated ingest →",
                             10, fill=MUTED)
                    + glyph(COG_SHAPE, x + 214, LEGEND_Y + 29, L.FLOW, cls="key")
-                   + G.text(x + 224, LEGEND_Y + 34, "cloud-optimized (COG)", 10,
+                   + G.text(x + 224, LEGEND_Y + 34, "cloud-optimized", 10,
                             fill=L.FLOW, weight="bold")
                    + "</g>")
     out.append("</g>")
@@ -461,7 +465,7 @@ def story_svg(f):
         color = SAT_COLOR[PASSES[EMIT[i][1]]["sat"]]
         for x, y in dot_positions(i, f):
             dots.append(glyph(shape_of(i, x), x, y, color))
-    out.append('<g class="dots">%s</g>' % "".join(dots))
+    out.append('<g class="dots" opacity="%.2f">%s</g>' % (DOT_ALPHA, "".join(dots)))
     gone = 1.0 - ramp(f, OPEN_AT, OPEN_AT + 20)
     if gone > 0 and f >= SQUEEZE:
         out.append(G.text(MOUTH_X + 20, MID_Y + MOUTH_H + 34,

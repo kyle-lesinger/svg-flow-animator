@@ -73,8 +73,7 @@ print(json.dumps(dict(
     last=dict(copies=count(last, "copy"), flying=count(last, "flying"),
               items=count(last, "item"),
               portal=count(last, "chip portal"), mmgis=count(last, "layer mmgis"),
-              cogs=[s["name"] for s in J.SATS
-                    if has(last, "%%s \u00b7 %%s" %% (s["name"], J.CLOUD_FMT))],
+              cogs=[s["name"] for s in J.SATS if has(last, J.cloud_label(s))],
               cells=count(last, "cell"), zero=last.count(">0 copies</text>"),
               caption=has(last, J.CAPTIONS[-1][1]), cell_pts=cell_pts(last)),
     store=J.STORE,

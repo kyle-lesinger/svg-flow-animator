@@ -51,7 +51,14 @@ SATS = (
          half=6.5, at=(26, -117), span=56, panel="#2f855a"),
 )
 N_DUP = 3                # datasets copied into every tool: the problem's peak
-CLOUD_FMT = "COG"
+# Not a format name: the work uses many cloud-optimized formats, and naming
+# one would say all of it becomes that one.
+CLOUD_FMT = "cloud-optimized"
+
+
+def cloud_label(sat):
+    """A converted file's label -- the short name, so it fits the store."""
+    return "%s \u00b7 %s" % (sat["short"], CLOUD_FMT)
 
 # ------------------------------------------------------------------ layout ---
 GLOBE = GL.Globe(275, 420, 210, 22, -88)       # centred on the Gulf of Mexico
@@ -528,8 +535,8 @@ def _store(f):
             out.append(G.text(TILE_X, ty, "%s · %s" % (sat["name"], sat["fmt"]),
                               9, opacity=landed * (1 - c)))
         if c > 0:
-            out.append(G.text(TILE_X, ty, "%s · %s" % (sat["name"], CLOUD_FMT),
-                              9, fill=L.FLOW, weight="bold", opacity=c))
+            out.append(G.text(TILE_X, ty, cloud_label(sat),
+                              9, fill=L.FLOW, opacity=c))
     return "".join(out)
 
 

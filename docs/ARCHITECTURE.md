@@ -160,7 +160,8 @@ orbits (Landsat 9, NOAA-20, the ISS) paint swaths on a Blue Marble globe; each
 peels off as a dataset in its own format (GeoTIFF, NetCDF, HDF5) and is
 copied into the Disasters PORTAL and MMGIS until there are datasets x tools
 copies -- capped at three datasets (`N_DUP`). Then each is converted once to
-COG and stored once, STAC indexes them, and both tools read in place; a
+a cloud-optimized format and stored once, STAC indexes them, and both tools
+read in place; a
 fourth satellite's file (HDF4) arrives after the fix as one file and one item.
 
 MMGIS draws the swaths on a flat map cropped from the globe's own texture,
@@ -176,8 +177,8 @@ funnel and queues behind a narrow neck carrying three stations, in the order
 the work happens -- download terabytes (moving the data), convert and analyze
 (time to decision), copy per tool (silos; a dot splits into copies there) --
 while a clock climbs to weeks. Then the neck opens and the architecture takes
-their place: cloud storage and COG, STAC (indexed once, interoperable), web
-apps. The queue is computed, not simulated: departures are
+their place: cloud storage (cloud-optimized), STAC (indexed once,
+interoperable), web apps. The queue is computed, not simulated: departures are
 fixed up front (FIFO, one through the neck per `SERVICE` frames) and every dot's
 position is a pure function of the frame, so frames render in any order.
 
@@ -190,10 +191,15 @@ cross), so "many formats" is seen rather than read. The NITF one is Umbra, a
 commercial SAR bought through CSDA: tasked, so it paints one framed scene
 rather than a swath, and side-looking, so its beam slants from a track off the
 scene's coast; when the neck opens, automated ingest turns
-every shape into the one circle -- cloud-optimized (COG) -- and only it does: the
+every shape into the one circle -- cloud-optimized -- and only it does: the
 tests check no dot changes shape on the manual path, and none keeps its shape
 past ingest. The queue is the bottleneck's own (`funnel.py`), and HDF4 is a
-cross because a hexagon, at dot size, read as the COG circle.
+cross because a hexagon, at dot size, read as the cloud-optimized circle.
+
+**No slide says "COG".** The work uses many cloud-optimized formats; naming one
+says every file becomes that one. The slides say "cloud-optimized", and
+`tests/test_disasters_wording.py` reads every slide's rendered text to keep it
+that way.
 
 The globe is a raster -- `globe.py` projects the texture once, in pure Python,
 into a PNG cached under `frames/assets/` (librsvg's containment rule) and keyed

@@ -36,12 +36,15 @@ TITLE = ("Data-driven, interoperable, cloud-native web architecture "
          "for actionable decisions")
 WARN = "#c0392b"
 MUTED = "#6b7280"
+# Dots are see-through, as ONE group: the words and columns behind them stay
+# readable, and a packed queue is no darker than a single dot.
+DOT_ALPHA = 0.55
 DOT_COLORS = ("#ed6925", "#21918c", "#d6457f", "#3b528b", "#fbb61a",
               "#5ec962", "#781c6d", "#3f8fd6")
 
 PROBLEM = (("Download", "terabytes"), ("Convert,", "analyze"), ("Copy", "per tool"))
 COPY_STATION = 2                  # where a dot becomes one copy per tool
-SOLUTION = (("Cloud storage", "COG · data stays put", "#eef4fb"),
+SOLUTION = (("Cloud storage", "cloud-optimized · data stays put", "#eef4fb"),
             ("STAC", "indexed once \u00b7 interoperable", L.FILL_STAC),
             ("Web apps", "PORTAL · MMGIS · ArcGIS", L.FILL_PORTAL))
 
@@ -243,7 +246,7 @@ def bottleneck_svg(f):
         for x, y in position(i, f):
             dots.append('<circle cx="%.1f" cy="%.1f" r="4.6" fill="%s"/>'
                         % (x, y, COLOR[i]))
-    out.append('<g class="dots">%s</g>' % "".join(dots))
+    out.append('<g class="dots" opacity="%.2f">%s</g>' % (DOT_ALPHA, "".join(dots)))
 
     # how long the line is -- the problem made countable
     q = len(waiting(f))
