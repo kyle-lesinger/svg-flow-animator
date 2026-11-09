@@ -117,6 +117,20 @@ changes before it can sit on a light box:
 Then `rsvg-convert -h 600` and `magick -trim +repage` — the viewBox is the
 wordmark's, so the trim is what crops it to the spiral.
 
+## The globe texture
+
+`blue-marble-2048.jpg` -- the journey slide's Earth. NASA SVS item 2915, "Blue
+Marble - A Seamless Image Mosaic of the Earth", public domain:
+
+```bash
+curl -sSL https://svs.gsfc.nasa.gov/vis/a000000/a002900/a002915/bluemarble-2048.png \
+  | magick - -quality 85 assets/blue-marble-2048.jpg
+```
+
+It is the same 2048x1024 equirectangular image the Earth Data Navigator bundles.
+`globe.py` decodes it with ImageMagick and projects it itself; the result is
+cached in `frames/assets/`, so delete `globe_*.png` there after replacing it.
+
 ## Screenshots
 
 The four portal captures are all extracted ids: `aX.jpg` (home), `aZ.jpg`

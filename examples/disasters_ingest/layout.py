@@ -445,6 +445,28 @@ def portal_fan(i):
                    "TinaCMS -> " + PORTAL_SHOTS[i])
 
 
+# ------------------------------------------------------------------ intro ---
+# The story's opening: STAC alone at the centre, then a panel either side of it
+# saying why STAC matters. The panels are NOT handles. The editor previews
+# frame 0 of the main film, where they do not exist, so a handle for one would
+# be a dashed box over Data Integration that moves nothing visible. They are
+# derived from STAC's box instead, so moving STAC in the editor carries them.
+INTRO_MARGIN = 40              # the canvas margin the diagram itself keeps
+INTRO_GAP = 40                 # air between STAC and each panel
+INTRO_PANEL_H = 216            # a heading and three one-line points
+
+
+def intro_panel(side):
+    """(x, y, w, h) of the benefits panel left or right of STAC."""
+    sx, sy, sw, sh = BOX_STAC
+    y = sy + sh / 2 - INTRO_PANEL_H / 2
+    if side == "left":
+        x = INTRO_MARGIN
+        return (x, y, sx - INTRO_GAP - x, INTRO_PANEL_H)
+    x = sx + sw + INTRO_GAP
+    return (x, y, W - INTRO_MARGIN - x, INTRO_PANEL_H)
+
+
 # ---------------------------------------------------------------- bubbles ---
 # Bubbles are AUTO-PLACED: rather than pinning each one to a hand-picked slot,
 # the generator searches the canvas for the position closest to that stage's

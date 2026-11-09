@@ -51,7 +51,7 @@ an example calling `editor.build(...)`.
 ## Run / verify
 
 ```bash
-python3 tests/run.py                                 # 376 tests, ~10s
+python3 tests/run.py                                 # 458 tests, ~11s
 python3 examples/minimal/demo.py                     # full pipeline, ~360 frames
 python3 examples/minimal/demo.py --style=sketch      # hand-drawn variant
 python3 -m compileall svg_flow_animator examples     # syntax
@@ -91,6 +91,10 @@ That build also emits one GIF per chapter, plus a still of the whole thing:
 
 ```bash
 ./build.sh --list-sections     # what is buildable, and what each animates
+./build.sh --section=intro     # -> sections/intro.gif, the story's opening
+./build.sh --section=journey   # -> sections/journey.gif, problem and fix
+./build.sh --section=bottleneck  # -> sections/bottleneck.gif, the bottleneck solved
+./build.sh --section=story     # -> sections/story.gif, the two combined, 45 s
 ./build.sh --section=egis      # -> sections/egis.gif
 ./build.sh --all-sections
 ./build.sh --poster            # -> sections/ecosystem.png, 3200x1800
@@ -103,6 +107,24 @@ render. The filename suffix applies to whatever is *not* the default, so
 Every section shows the **whole canvas** — it is not a crop. Sections differ by
 what MOVES (`SECTION_SCOPE`) and which frames they cover (`section_span`). See
 `docs/ARCHITECTURE.md`.
+
+The exceptions are the opening **slides** (`slides()` in `gen_frames.py`), each
+its own picture on its own timeline, not on `_SPEC`, and each plays once:
+
+- `intro`: STAC alone, then a benefits panel either side of it (`intro_svg`,
+  `INTRO_PANELS` for the wording).
+- `journey`: a satellite paints a swath on a Blue Marble globe; copying each
+  dataset into every tool multiplies; then store once, index in STAC, read in
+  place (`journey.py`, globe maths and raster in `globe.py`). It needs
+  `assets/blue-marble-2048.jpg` -- see `docs/ASSETS.md`.
+- `bottleneck`: data queues behind a narrow neck (download, convert and
+  analyze, copy per tool), then the neck opens into cloud storage, STAC and web
+  apps (`bottleneck.py`). The queue is computed per frame, not simulated
+  (`funnel.py`, shared with `story`).
+- `story`: the journey and the bottleneck in one 45 s picture -- a showcase
+  globe, a shape per data format (incl. a CSDA commercial SAR, Umbra), the
+  manual bottleneck, then automated ingest
+  to a cloud-optimized format, STAC and web apps (`story.py`).
 
 ## Critical constraints
 

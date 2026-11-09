@@ -15,6 +15,10 @@ Needs `rsvg-convert` and `ffmpeg` on PATH. No Python packages.
 ### One GIF per section
 
     ./build.sh --list-sections        # what is buildable
+    ./build.sh --section=intro        # -> sections/intro.gif, the opening
+    ./build.sh --section=journey      # -> sections/journey.gif, problem and fix
+    ./build.sh --section=bottleneck   # -> sections/bottleneck.gif, the bottleneck solved
+    ./build.sh --section=story        # -> sections/story.gif, the two combined, 45 s
     ./build.sh --section=egis         # -> sections/egis.gif
     ./build.sh --all-sections         # -> sections/*.gif
 
@@ -107,6 +111,11 @@ diagram say something untrue.
     overrides.py      the tunable-geometry layer + handle registry
     editor.py         generates the browser editor
     gen_frames.py     draws one SVG per frame
+    journey.py        the journey slide: swath -> copies -> store once + STAC
+    globe.py          orthographic globe, orbits, swaths, Blue Marble raster
+    bottleneck.py     the bottleneck slide: a queue behind a neck that opens
+    funnel.py         that queue, shared by the bottleneck and story slides
+    story.py          globe + formats + bottleneck + automation, in 45 s
     style.py          flat vs sketch drawing backends
     rough.py          Excalidraw-style sketchy geometry (roughjs port)
     extract_assets.py re-extract artwork from a source SVG export
