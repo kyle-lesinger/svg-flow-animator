@@ -1499,7 +1499,7 @@ INTRO_PANELS = (
     ("right", "Across NASA", (
         "NASA Earthdata searchable through CMR-STAC",
         "Used by VEDA, the U.S. GHG Center and MAAP",
-        "Cloud-native: stream COGs and Zarr directly",
+        "Cloud-native: stream cloud-optimized formats",
     )),
 )
 

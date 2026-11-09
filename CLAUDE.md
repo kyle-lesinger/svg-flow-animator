@@ -51,7 +51,7 @@ an example calling `editor.build(...)`.
 ## Run / verify
 
 ```bash
-python3 tests/run.py                                 # 458 tests, ~11s
+python3 tests/run.py                                 # 459 tests, ~11s
 python3 examples/minimal/demo.py                     # full pipeline, ~360 frames
 python3 examples/minimal/demo.py --style=sketch      # hand-drawn variant
 python3 -m compileall svg_flow_animator examples     # syntax
