@@ -82,14 +82,14 @@ def to_canvas(p):
 
 # ---------------------------------------------------------------- timeline ---
 MAX_SECONDS = 30
-INTRO = 3 * FPS                      # the tray alone: here is the toolkit
+INTRO = 38                           # 2.5 s: the tray alone, here is the toolkit
 STEP = 4 * FPS                       # each section, and its pieces arriving
 APPEAR = 12                          # a section fades in...
 FLY = 24                             # ...then each piece takes this to land,
 STAGGER = 10                         # one after another
 LAND_FLASH = 14                      # the glow on landing, before it settles
-FINALE = 7 * FPS                     # all in place, what it adds up to, and
-                                     # the connections drawing in
+FINALE = 112                         # 7.5 s: all in place, what it adds up to,
+                                     # and the connections drawing in
 
 
 def step_start(s):
@@ -108,10 +108,11 @@ FAINT, FAINT_W = 0.45, 2             # the spokes and the Portal fan: there, qui
 HUB_AT = CONVERGE_AT + 6             # hub -> Ingest UI, once the spokes have met
 INTO_AT = CONVERGE_AT + LINK_T       # the legs into STAC, once the spokes have met
 INTO_STAC = ("disasters_to_stac", "egis_to_stac", "processing_to_stac")
-ENGAGE_AT = CONVERGE_AT + 46         # Community's link, once the data legs are in
-ENGAGE_T = 24
-OUT_AT = CONVERGE_AT + 52            # the legs out of STAC, together
+OUT_AT = INTO_AT + 2 * LINK_STAGGER + LINK_T   # the legs out of STAC, together,
+                                     # once the last leg in has arrived
 FAN_AT = OUT_AT + LINK_T             # TinaCMS -> the pages, once Portal's leg lands
+ENGAGE_AT = FAN_AT + LINK_T          # Community's link, last of all
+ENGAGE_T = 20
 OUT_OF_STAC = (("stac_to_portal", G.STAC_MAIN_W), ("stac_return", G.STAC_MINOR_W),
                ("stac_to_egis", G.STAC_MINOR_W), ("stac_to_processing", G.STAC_MINOR_W))
 ENGAGE_ITEMS = (1, 2, 3)             # MyST Docs, GitHub, Grafana: the toolkit's

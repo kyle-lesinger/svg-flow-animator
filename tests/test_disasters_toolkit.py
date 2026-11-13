@@ -99,6 +99,7 @@ def opacities(doc):
 
 # the order of the connections: into STAC first, then out, then Community's
 out_before_in, engage_before_in, fan_before_portal, in_before_spokes = [], [], [], []
+engage_before_fan = []
 for f in range(T.CONVERGE_AT, T.TOTAL, 2):
     lk = links(T.toolkit_svg(f))
     all_in = all(lk.get(n, 0) >= 1 for n in T.INTO_STAC)
@@ -111,6 +112,8 @@ for f in range(T.CONVERGE_AT, T.TOTAL, 2):
         out_before_in.append(f)
     if "engagement" in lk and not all_in:
         engage_before_in.append(f)
+    if "engagement" in lk and any(lk.get("portal_fan_%%d" %% i, 0) < 1 for i in range(4)):
+        engage_before_fan.append(f)
 last_links = links(last)
 last_op = opacities(last)
 faint = [n for n in last_op if n.startswith(("spoke_", "portal_fan_", "hub_to", "push"))]
@@ -143,6 +146,7 @@ print(json.dumps(dict(
     converge_at=T.CONVERGE_AT, all_at=T.ALL_AT,
     out_before_in=out_before_in, engage_before_in=engage_before_in,
     fan_before_portal=fan_before_portal, in_before_spokes=in_before_spokes,
+    engage_before_fan=engage_before_fan,
     faint=faint, faint_ok=all(last_op[n] < 0.6 for n in faint),
     n_sources=len(L.SOURCES),
     last_links=last_links, into=list(T.INTO_STAC), outs=[n for n, _w in T.OUT_OF_STAC],
@@ -240,6 +244,8 @@ class ToolkitCase(unittest.TestCase):
         P = self.P
         self.assertEqual(P["in_before_spokes"], [], "a leg into STAC drew before the spokes met")
         self.assertEqual(P["fan_before_portal"], [], "the Portal fan drew before its leg landed")
+        self.assertEqual(P["engage_before_fan"], [],
+                         "Community's link drew before the TinaCMS fan had")
         self.assertEqual(len(P["faint"]), P["n_sources"] + 1 + 1 + 4, "spokes, hub, push, fan")
         self.assertIn("push", P["faint"], "Funded Projects -> Disasters bucket")
         self.assertTrue(P["faint_ok"], "spokes and fan should be faint, not at full weight")
