@@ -181,7 +181,7 @@ def _hash(i, salt):
 
 def _emissions():
     """(emit frame, pass index) for every dot: off the scan line, every few
-    frames while a satellite records -- every frame once the neck is open."""
+    frames while a satellite records -- twice as often once the neck is open."""
     out = []
     for k, pz in enumerate(PASSES):
         a, b = pz["rec"]
@@ -190,7 +190,7 @@ def _emissions():
         f = a
         while f < b:
             out.append((f, k))
-            f += 2 if f < OPEN_AT else 1
+            f += 4 if f < OPEN_AT else 2       # was 2 / 1: half the dots
     return out
 
 

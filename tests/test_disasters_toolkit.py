@@ -8,9 +8,11 @@ sections arrive in the stated order -- Data Integration and Funded Projects &
 Partners together first -- and stay; every piece goes tray -> flying ->
 placed on its own beat, and lands drawn exactly as the diagram draws it, with
 no transform left on it; GitHub, used twice, keeps its tray copy until its
-last trip; no data path and no "no automated data path" is drawn; it ends on
-everything in place under the three qualities, the tray gone; and the words
-fit.
+last trip; no path is drawn until everything is in place, and no "no
+automated data path"; then the legs into STAC draw in before the legs out of
+it, Community's link reaches STAC and is grey, not flow green; it ends on
+everything in place and connected under the three qualities, the tray gone;
+and the words fit.
 
 Subprocess-run with overrides pinned empty. Needs the gitignored artwork.
 """
@@ -81,11 +83,33 @@ between = states(T.toolkit_svg(T.landed_at(*gh[0]) + 1))
 exact = {"%%s/%%d" %% (k, p): ('data-state="placed">' + I.piece(k)[p]) in last
          for _s, _j, k, p in T.DROPS}
 
-sampled = sorted({0, T.TOTAL - 1} | {T.step_start(s) + T.APPEAR + 1
+sampled = sorted({0, T.ALL_AT - 1} | {T.step_start(s) + T.APPEAR + 1
                                       for s in range(len(T.STEPS))})
 docs = {f: T.toolkit_svg(f) for f in sampled}
 
-fits = [dict(s=T.TITLE, el=element(last, T.TITLE), x0=20, x1=L.W - 20)]
+def links(doc):
+    return {n: float(p) for n, p in re.findall(
+        r'<g class="link" data-link="([a-z_]+)" data-progress="([0-9.]+)">', doc)}
+
+# the order of the connections: into STAC first, then out, then Community's
+out_before_in, engage_before_in = [], []
+for f in range(T.CONVERGE_AT, T.TOTAL, 2):
+    lk = links(T.toolkit_svg(f))
+    all_in = all(lk.get(n, 0) >= 1 for n in T.INTO_STAC)
+    if any(n in lk for n, _w in T.OUT_OF_STAC) and not all_in:
+        out_before_in.append(f)
+    if "engagement" in lk and not all_in:
+        engage_before_in.append(f)
+last_links = links(last)
+stubs, trunk = T.engagement()
+sx, sy, sw, sh = L.BOX_STAC
+cx0, cy0, cw, ch = L.BOX_COMMUNITY
+engage_grey = last.count('stroke="%%s"' %% T.ENGAGE_COLOR)
+lx, ly, lw, lh = T.label_rect()
+
+fits = [dict(s=T.TITLE, el=element(last, T.TITLE), x0=20, x1=L.W - 20),
+        # drawn inside the ecosystem group, so measured in its coordinates
+        dict(s=T.ENGAGE_LABEL, el=element(last, T.ENGAGE_LABEL), x0=lx, x1=lx + lw)]
 for k, key in enumerate(I.KEYS):
     cx, _cy = T.slot_c(k)
     fits.append(dict(s=T.NAMES[key], el=element(first, T.NAMES[key]),
@@ -102,7 +126,15 @@ print(json.dumps(dict(
     n_keys=len(I.KEYS), first_step=list(T.STEPS[0][0]),
     steps=steps, before_first=before_first, trips=trips, between=between,
     exact=exact, last_states=states(last),
-    paths={f: paths(d) for f, d in docs.items()},
+    paths={f: paths(d) for f, d in docs.items()}, paths_last=paths(last),
+    converge_at=T.CONVERGE_AT, all_at=T.ALL_AT,
+    out_before_in=out_before_in, engage_before_in=engage_before_in,
+    last_links=last_links, into=list(T.INTO_STAC), outs=[n for n, _w in T.OUT_OF_STAC],
+    engage_grey=engage_grey,
+    trunk_end_on_stac=(trunk[-1][0] == sx + sw and sy < trunk[-1][1] < sy + sh),
+    stubs_from_community=all(p[0][1] == cy0 and cx0 < p[0][0] < cx0 + cw for p in stubs),
+    label_in_gap=(ly >= L.BOX_PORTAL[1] + L.BOX_PORTAL[3] and ly + lh <= cy0),
+    stac_halo_last=('<g class="link"' in last),
     notes=[f for f, d in docs.items() if has(d, "no automated data path")],
     tray_last=('class="tray"' in last),
     qualities=[has(last, q) for q in T.QUALITIES],
@@ -170,10 +202,30 @@ class ToolkitCase(unittest.TestCase):
     def test_each_piece_lands_exactly_where_the_diagram_draws_it(self):
         self.assertEqual(self.P["exact"], {k: True for k in self.P["exact"]})
 
-    def test_no_path_and_no_note_is_drawn(self):
+    def test_no_path_and_no_note_is_drawn_until_everything_is_in_place(self):
         for f, p in self.P["paths"].items():
+            self.assertLess(int(f), self.P["all_at"])
             self.assertEqual(p, dict(flow=0, packets=0, markers=0, push=False),
                              "frame %s draws a path" % f)
+        # ...and at the end the connections are drawn: lines only, nothing
+        # travelling along them, and no "Push data"
+        p = self.P["paths_last"]
+        self.assertGreater(p["flow"], 0)
+        self.assertEqual((p["packets"], p["push"]), (0, False))
+
+    def test_everything_converges_on_stac_before_anything_leaves_it(self):
+        P = self.P
+        self.assertEqual(P["out_before_in"], [], "a leg out of STAC drew before the legs in")
+        self.assertEqual(P["engage_before_in"], [])
+        for n in P["into"] + P["outs"] + ["engagement"]:
+            self.assertEqual(P["last_links"].get(n), 1.0, "%s never finished drawing" % n)
+
+    def test_community_is_linked_to_stac_as_engagement_not_data(self):
+        P = self.P
+        self.assertTrue(P["stubs_from_community"], "the stubs do not rise from the block")
+        self.assertTrue(P["trunk_end_on_stac"], "the trunk does not end on STAC's edge")
+        self.assertGreater(P["engage_grey"], 0, "Community's link should be grey, not flow green")
+        self.assertTrue(P["label_in_gap"], "the label must sit between Portal Content and Community")
         self.assertEqual(self.P["notes"], [])
 
     def test_it_ends_assembled_under_what_it_adds_up_to(self):

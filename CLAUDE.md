@@ -161,7 +161,11 @@ its own picture on its own timeline, not on `_SPEC`, and each plays once:
   is assembled beneath it section by section -- Data Integration + Funded
   Projects first -- each piece moving down out of the tray to where the
   diagram draws it (GitHub twice: a copy first, the original last); ends on
-  the three qualities where the tray was (`toolkit.py`, 26 s). Sections are
+  the three qualities where the tray was, while the connections draw
+  themselves in: the legs into STAC first, one after another, each with a
+  pulse as STAC's glow rises, then the legs out, then one grey link from
+  Community's MyST Docs, GitHub and Grafana up into STAC, "docs · code ·
+  metrics": engagement, not a data path (`toolkit.py`, 30 s). Sections are
   drawn one at a time by `egis_block`, `processing_block`, `portal_block`,
   `community_block`, which `context_boxes` is now built from.
 

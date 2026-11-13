@@ -283,7 +283,18 @@ flight and in place; only a transform moves and scales it, and in place it has
 none, so it lands exactly where the diagram draws it (a test checks the
 untransformed markup). GitHub is used twice: its first trip is a copy, and it
 leaves the tray only on its last. At the end the tray gives way to the three
-qualities. Sections are drawn one at a time by `egis_block`,
+qualities, and the connections draw themselves in (`_links`): the three legs
+into STAC first, one after another, each arriving with a `node_pulse` as a
+halo on STAC rises with the count arrived -- everything converges on the
+catalogue -- then the legs out of it (Portal main, the three minor returns),
+then one link from Community & Engagement: stubs up from MyST Docs, GitHub
+and Grafana to a trunk that runs left in the gap under Portal Content and up
+the gap right of STAC into its edge below TinaCMS, labelled "docs · code ·
+metrics". It is drawn grey, not flow green, and the block stays dashed: it is
+engagement, not a data path, and nothing travels along any of these lines.
+A test checks that no path is drawn before everything is in place, that
+the legs in finish before the legs out start, and that Community's link is
+grey and ends on STAC. Sections are drawn one at a time by `egis_block`,
 `processing_block(pieces=False)`, `portal_block`, `community_block(skip=...)`
 and `integration_static(pieces=False)`; `context_boxes` is now composed of the
 block functions, and every frame of the main diagram is byte-identical to

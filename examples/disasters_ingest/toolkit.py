@@ -14,15 +14,20 @@ piece moving down out of the tray to where it works.
 GitHub is used in two places, so its first trip is a copy and it leaves the
 tray only on its last -- reuse, shown rather than said. Once everything is in
 place the tray gives way to what it adds up to: interoperable,
-cloud-optimized, cost-effective.
+cloud-optimized, cost-effective -- and the connections draw themselves in.
+The legs INTO STAC first, one after another, each arriving with a pulse as
+the catalogue's glow rises: everything converges on STAC. Then the legs out
+of it. Then one link from Community & Engagement's toolkit pieces -- MyST
+Docs, GitHub, Grafana -- up into STAC, labelled "docs · code · metrics" and
+drawn grey, not flow green: it is engagement, not a data path, and the block
+stays dashed. Nothing travels along any of them; lines draw in, that is all.
 
 The ecosystem is drawn at ECO_S of its size, below the tray, by the same block
 and piece functions as the diagram (gen_frames.*_block, infra.piece), so a
 piece lands exactly where the diagram draws it: in place it is drawn with no
 transform at all. In the tray, and on the way down, it is the same markup
 moved and scaled by a transform -- never re-placed geometry, which in sketch
-mode would boil. No data paths: like the infrastructure slide, this one is
-about what is built once and reused.
+mode would boil.
 """
 import gen_frames as G
 import infra as I
@@ -81,7 +86,8 @@ APPEAR = 12                          # a section fades in...
 FLY = 24                             # ...then each piece takes this to land,
 STAGGER = 10                         # one after another
 LAND_FLASH = 14                      # the glow on landing, before it settles
-FINALE = 3 * FPS                     # all in place, and what it adds up to
+FINALE = 7 * FPS                     # all in place, what it adds up to, and
+                                     # the connections drawing in
 
 
 def step_start(s):
@@ -90,6 +96,87 @@ def step_start(s):
 
 ALL_AT = step_start(len(STEPS))
 TOTAL = ALL_AT + FINALE
+
+# ----------------------------------------------------------- connections ---
+CONVERGE_AT = ALL_AT + FADE          # the tray has gone; the legs into STAC draw
+LINK_T = 16                          # frames a leg takes to draw itself in
+LINK_STAGGER = 9                     # one leg after another
+PULSE_T = 14                         # the ring where a leg arrives
+INTO_STAC = ("disasters_to_stac", "egis_to_stac", "processing_to_stac")
+ENGAGE_AT = CONVERGE_AT + 36         # Community's link, once the data legs are in
+ENGAGE_T = 24
+OUT_AT = CONVERGE_AT + 50            # the legs out of STAC, together
+OUT_OF_STAC = (("stac_to_portal", G.STAC_MAIN_W), ("stac_return", G.STAC_MINOR_W),
+               ("stac_to_egis", G.STAC_MINOR_W), ("stac_to_processing", G.STAC_MINOR_W))
+ENGAGE_ITEMS = (1, 2, 3)             # MyST Docs, GitHub, Grafana: the toolkit's
+ENGAGE_Y = 789                       # the trunk, in the gap under Portal Content
+ENGAGE_X = 950                       # ...up the gap right of STAC...
+ENGAGE_END_Y = 530                   # ...into STAC's right edge, below TinaCMS
+ENGAGE_LABEL = "docs · code · metrics"
+ENGAGE_COLOR = "#8a94a6"             # grey: engagement, not a data path
+ENGAGE_INK = "#5b6472"               # ...and its label, dark enough to read small
+
+
+def engagement():
+    """(stubs, trunk): a stub up from each of Community's toolkit pieces to
+    one trunk, which runs left under Portal Content and up into STAC."""
+    xs = [G.community_item_c(i)[0] for i in ENGAGE_ITEMS]
+    top = L.BOX_COMMUNITY[1]
+    stubs = [[(x, top), (x, ENGAGE_Y)] for x in xs]
+    trunk = [(max(xs), ENGAGE_Y), (ENGAGE_X, ENGAGE_Y), (ENGAGE_X, ENGAGE_END_Y),
+             (L.BOX_STAC[0] + L.BOX_STAC[2], ENGAGE_END_Y)]
+    return stubs, trunk
+
+
+def label_rect():
+    """Where the engagement label sits: over the trunk, under Portal Content."""
+    w = len(ENGAGE_LABEL) * 7.2 + 16
+    cx = (L.BOX_PORTAL[0] + ENGAGE_X) / 2 + 120
+    return (cx - w / 2, L.BOX_PORTAL[1] + L.BOX_PORTAL[3] + 1, w, 16)
+
+
+def _leg(name, pts, width, color, t0, dur, f, out):
+    """One connection drawing itself in from t0 over dur frames. Returns 1
+    once it has arrived."""
+    p = (f - t0) / float(dur)
+    if p <= 0:
+        return 0
+    out.append('<g class="link" data-link="%s" data-progress="%.3f">%s</g>'
+               % (name, min(1.0, p), G.link(pts, color=color, width=width,
+                                            progress=p, key=("tklink", name))))
+    return 1 if p >= 1 else 0
+
+
+def _links(f):
+    """The connections, once everything is in place: into STAC, then out of
+    it, then Community's. In ecosystem coordinates."""
+    if f < CONVERGE_AT:
+        return []
+    out, arrived = [], 0
+    for i, name in enumerate(INTO_STAC):
+        pts = getattr(L, name)()
+        t0 = CONVERGE_AT + LINK_STAGGER * i
+        arrived += _leg(name, pts, G.STAC_MAIN_W, L.FLOW, t0, LINK_T, f, out)
+        since = f - (t0 + LINK_T)
+        if 0 <= since < PULSE_T:
+            out.append(G.node_pulse(pts[-1][0], pts[-1][1],
+                                    strength=1 - since / float(PULSE_T), r=16))
+    for name, width in OUT_OF_STAC:
+        _leg(name, getattr(L, name)(), width, L.FLOW, OUT_AT, LINK_T, f, out)
+    stubs, trunk = engagement()
+    for i, pts in enumerate(stubs):
+        out.append('<g class="link" data-link="engage_stub">%s</g>'
+                   % G.link(pts, color=ENGAGE_COLOR, width=2, head=False,
+                            opacity=ramp(f, ENGAGE_AT, ENGAGE_AT + FADE),
+                            key=("tkstub", i)))
+    if _leg("engagement", trunk, 2, ENGAGE_COLOR, ENGAGE_AT, ENGAGE_T, f, out):
+        x, y, w, h = label_rect()
+        out.append(G.text(x + w / 2, y + 12, ENGAGE_LABEL, 11, fill=ENGAGE_INK,
+                          anchor="middle",
+                          opacity=ramp(f, ENGAGE_AT + ENGAGE_T, ENGAGE_AT + ENGAGE_T + FADE)))
+    # everything converges on the catalogue: its glow rises as the legs arrive
+    out.insert(0, G.halo(*L.BOX_STAC, strength=arrived / float(len(INTO_STAC))))
+    return out
 
 
 def _drops():
@@ -258,6 +345,7 @@ def toolkit_svg(f):
            '<g class="ecosystem" transform="translate(%.2f,%.2f) scale(%.4f)">'
            % (ECO_X, ECO_Y, ECO_S)]
     out += _sections(f)
+    out += _links(f)                 # under the pieces: Airflow sits on its leg
     out += _pieces(f)
     out.append("</g>")
     out.append("</svg>")
