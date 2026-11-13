@@ -49,7 +49,7 @@ CAPTIONS = (
               "convert by hand, copy into every tool."),
     (DECISIONS_WAIT, "Decisions wait weeks for the data, so we automated it: "
                      "a cloud-native workflow, end to end."),
-    (OPEN_AT + FIX_BEAT, "Actionable decisions in hours, not weeks."),
+    (OPEN_AT + FIX_BEAT, "GOAL: Actionable decisions in hours, not weeks."),
 )
 STATION_LIT = [(NAME_STATIONS + 22 * k, DECISIONS_WAIT) for k in range(3)]
 
