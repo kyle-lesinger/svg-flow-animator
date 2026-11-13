@@ -4,7 +4,8 @@ The response slide: the whole network, end to end, in 15 seconds.
 
 Observation to action. Satellites paint their swaths on a globe and their data
 leaves in its own format; automated ingest makes every format cloud-optimized,
-cloud storage keeps it once, STAC indexes it; from STAC the same granule
+cloud storage keeps it once, STAC indexes it -- with TinaCMS beside it, the
+one editor for every app, as on the uses slide; from STAC the same granule
 reaches every destination at once -- a web dashboard, an analysis tool, a news
 or event article, a lesson, and any other tool or API that speaks STAC, which
 is what interoperable means -- and from each of those it reaches the people:
@@ -81,6 +82,8 @@ API = ("Other tools & APIs", "any STAC client · any platform", None, None, None
 DESTS = U.DESTS + (API,)
 N_ROUTES = len(DESTS)
 INTEROP = "interoperable · open standard"
+# In STAC's column, under the catalogue: the one editor for every app (uses.py)
+TINA = ("TinaCMS", "one editor", "for every app")
 PEOPLE = (1476, 100, 118, 744)        # who acts on it, beside every destination
 HEADING_Y = 88
 COMMUNITY = "Disasters community"
@@ -216,6 +219,11 @@ def shot_rect(r):
     return (x + SHOT[0], y + SHOT[1], SHOT[2], SHOT[3])
 
 
+def tina_rect():
+    """TinaCMS's box, under the catalogue in STAC's column."""
+    return (COL_X[STAC] - 50, COL_BODY[0] + 102, 100, 104)
+
+
 def badge_rect():
     bw = len(U.SOURCE_OF_TRUTH) * 8.6 + 30
     return (COL_X[STAC] - bw / 2, BADGE_Y, bw, 26)
@@ -266,9 +274,18 @@ def _columns(f, out, a):
     # inside them: the automation turning, the store, the catalogue
     out.append('<g opacity="%.3f">' % (0.9 * a)
                + G.airflow_group(COL_X[INGEST], MID_Y, 64, f * 5.0) + "</g>")
+    # STAC's column holds the uses slide's one system: the catalogue, and under
+    # it TinaCMS in its own box, the one editor for every app
+    x, y0 = COL_X[STAC], COL_BODY[0]
+    tx, ty, tw, th = tina_rect()
     out.append('<g opacity="%.3f">' % a
                + G.cylinder(COL_X[STORE], MID_Y, w=54, h=60)
-               + G.img(L.A_STAC, COL_X[STAC] - 46, MID_Y - 26, 92, 52)
+               + G.img(L.A_STAC, x - 46, y0 + 30, 92, 52)
+               + G.box(tx, ty, tw, th, "#fff4ee")
+               + G.img(L.A_TINA, x - 19, ty + 8, 38, 38)
+               + G.text(x, ty + 62, TINA[0], 11, anchor="middle", weight="bold")
+               + "".join(G.text(x, ty + 77 + 14 * j, line, 9.5, fill=MUTED,
+                                anchor="middle") for j, line in enumerate(TINA[1:]))
                + "</g>")
     bx, by, bw, bh = badge_rect()
     out.append('<g class="badge" opacity="%.3f">' % a

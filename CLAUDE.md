@@ -140,7 +140,8 @@ its own picture on its own timeline, not on `_SPEC`, and each plays once:
   data (`uses.py`, ~26 s). It says *simplified*, never automated.
 - `response`: the whole network, end to end, in 15 s, no caption -- the
   story's globe and cast on the left, automated ingest, cloud storage and
-  STAC across the middle, five destinations on the right (the uses slide's
+  STAC (with TinaCMS, the one editor) across the middle, five destinations on
+  the right (the uses slide's
   four pages and "Other tools & APIs": STAC API, pull don't copy,
   interoperable), and beside them the people: Disasters community, decision
   makers, emergency managers, responders, "act in hours, not weeks". A

@@ -103,6 +103,9 @@ for k, (title, _sub, _fill) in enumerate(R.COLUMNS):
     hx, hy, hw, hh = R.header_rect(k)
     for s in title.split(" ") if k == R.INGEST else (title,):
         fits.append(dict(s=s, el=element(last, s), x0=hx + 2, x1=hx + hw - 2))
+tx, ty, tw, th = R.tina_rect()
+for s in R.TINA:
+    fits.append(dict(s=s, el=element(last, s), x0=tx + 2, x1=tx + tw - 2))
 bx, by, bw, bh = R.badge_rect()
 fits.append(dict(s=U.SOURCE_OF_TRUTH, el=element(last, U.SOURCE_OF_TRUTH),
                  x0=bx + 6, x1=bx + bw - 6))
@@ -130,8 +133,9 @@ print(json.dumps(dict(
         badge=has(settled, U.SOURCE_OF_TRUTH), legend=has(settled, "cloud-optimized"),
         community=has(settled, R.COMMUNITY), roles=[has(settled, s) for s in R.ROLES],
         hours=[has(settled, s) for s in R.HOURS], api=has(settled, "STAC API"),
+        tina=[has(settled, s) for s in R.TINA],
         images=images(settled)),
-    needed=[L.A_STAC] + [d[3] for d in U.DESTS],
+    needed=[L.A_STAC, L.A_TINA] + [d[3] for d in U.DESTS],
     counts_last=count(last, "%%d updates" %% n_last),
     captions=len(re.findall(r'class="caption"', last)),
     wrong_shape=wrong_shape[:5], off_canvas=off_canvas[:5], copies=copies[:5],
@@ -184,6 +188,7 @@ class ResponseCase(unittest.TestCase):
         self.assertTrue(net["api"])
         self.assertEqual(net["columns"], [True, True, True])
         self.assertTrue(net["badge"], "STAC is not named the single source of truth")
+        self.assertEqual(net["tina"], [True] * 3, "TinaCMS, the one editor, beside STAC")
         self.assertTrue(net["legend"], "the formats legend says cloud-optimized")
         self.assertTrue(net["community"])
         self.assertEqual(net["roles"], [True] * len(net["roles"]))
@@ -229,7 +234,7 @@ class ResponseCase(unittest.TestCase):
     @sup.needs_magick
     def test_every_word_fits_where_it_sits_as_rendered(self):
         cw, ch = self.P["canvas"]
-        self.assertGreaterEqual(len(self.P["fits"]), 5 * 4 + 3 + 4 + 1 + 7 + 2)
+        self.assertGreaterEqual(len(self.P["fits"]), 5 * 4 + 3 + 4 + 3 + 1 + 7 + 2)
         for fit in self.P["fits"]:
             self.assertIsNotNone(fit["el"], "%r is not drawn" % fit["s"])
             x0, x1 = sup.ink_extent(fit["el"], cw, ch)

@@ -227,7 +227,9 @@ screenshots, so it is encoded like the journey (256 colours, full).
 `response` is the whole network in one picture, end to end, in 15 seconds,
 with no caption: the story's globe and cast of satellites on the left, the
 solved pipeline across the middle (automated ingest with Airflow turning,
-cloud storage, STAC badged as the single source of truth), five destinations
+cloud storage, STAC badged as the single source of truth, with TinaCMS under
+the catalogue in its column as the one editor for every app, as the uses
+slide has it), five destinations
 on the right -- the uses slide's four pages and a fifth, "Other tools & APIs",
 whose panel reads "STAC API · open standard · pull, don't copy" and whose
 status line says interoperable -- and beside them the people: a "Disasters
