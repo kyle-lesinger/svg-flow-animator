@@ -283,10 +283,12 @@ flight and in place; only a transform moves and scales it, and in place it has
 none, so it lands exactly where the diagram draws it (a test checks the
 untransformed markup). GitHub is used twice: its first trip is a copy, and it
 leaves the tray only on its last. At the end the tray gives way to the three
-qualities, and the connections draw themselves in (`_links`): the three legs
-into STAC first, one after another, each arriving with a `node_pulse` as a
+qualities, and the connections draw themselves in (`_links`): the sources'
+spokes first, faint (opacity 0.45, no heads), meeting at the hub the leg
+into STAC leaves from, then the three legs into STAC, one after another, each arriving with a `node_pulse` as a
 halo on STAC rises with the count arrived -- everything converges on the
-catalogue -- then the legs out of it (Portal main, the three minor returns),
+catalogue -- then the legs out of it (Portal main, the three minor returns) and, once
+Portal's has landed, the TinaCMS fan to the four pages, faint,
 then one link from Community & Engagement: stubs up from MyST Docs, GitHub
 and Grafana to a trunk that runs left in the gap under Portal Content and up
 the gap right of STAC into its edge below TinaCMS, labelled "docs · code ·

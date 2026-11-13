@@ -15,9 +15,11 @@ GitHub is used in two places, so its first trip is a copy and it leaves the
 tray only on its last -- reuse, shown rather than said. Once everything is in
 place the tray gives way to what it adds up to: interoperable,
 cloud-optimized, cost-effective -- and the connections draw themselves in.
-The legs INTO STAC first, one after another, each arriving with a pulse as
-the catalogue's glow rises: everything converges on STAC. Then the legs out
-of it. Then one link from Community & Engagement's toolkit pieces -- MyST
+The sources' spokes first, faint, meeting at the hub the leg into STAC leaves
+from; then the legs INTO STAC, one after another, each arriving with a pulse
+as the catalogue's glow rises: everything converges on STAC. Then the legs
+out of it, and the Portal fan, faint, once the Portal leg has landed. Then
+one link from Community & Engagement's toolkit pieces -- MyST
 Docs, GitHub, Grafana -- up into STAC, labelled "docs · code · metrics" and
 drawn grey, not flow green: it is engagement, not a data path, and the block
 stays dashed. Nothing travels along any of them; lines draw in, that is all.
@@ -98,14 +100,18 @@ ALL_AT = step_start(len(STEPS))
 TOTAL = ALL_AT + FINALE
 
 # ----------------------------------------------------------- connections ---
-CONVERGE_AT = ALL_AT + FADE          # the tray has gone; the legs into STAC draw
-LINK_T = 16                          # frames a leg takes to draw itself in
-LINK_STAGGER = 9                     # one leg after another
+CONVERGE_AT = ALL_AT + FADE          # the tray has gone; the sources' spokes draw
+LINK_T = 14                          # frames a leg takes to draw itself in
+LINK_STAGGER = 8                     # one leg after another
 PULSE_T = 14                         # the ring where a leg arrives
+FAINT, FAINT_W = 0.45, 2             # the spokes and the Portal fan: there, quietly
+HUB_AT = CONVERGE_AT + 6             # hub -> Ingest UI, once the spokes have met
+INTO_AT = CONVERGE_AT + LINK_T       # the legs into STAC, once the spokes have met
 INTO_STAC = ("disasters_to_stac", "egis_to_stac", "processing_to_stac")
-ENGAGE_AT = CONVERGE_AT + 36         # Community's link, once the data legs are in
+ENGAGE_AT = CONVERGE_AT + 46         # Community's link, once the data legs are in
 ENGAGE_T = 24
-OUT_AT = CONVERGE_AT + 50            # the legs out of STAC, together
+OUT_AT = CONVERGE_AT + 52            # the legs out of STAC, together
+FAN_AT = OUT_AT + LINK_T             # TinaCMS -> the pages, once Portal's leg lands
 OUT_OF_STAC = (("stac_to_portal", G.STAC_MAIN_W), ("stac_return", G.STAC_MINOR_W),
                ("stac_to_egis", G.STAC_MINOR_W), ("stac_to_processing", G.STAC_MINOR_W))
 ENGAGE_ITEMS = (1, 2, 3)             # MyST Docs, GitHub, Grafana: the toolkit's
@@ -135,15 +141,17 @@ def label_rect():
     return (cx - w / 2, L.BOX_PORTAL[1] + L.BOX_PORTAL[3] + 1, w, 16)
 
 
-def _leg(name, pts, width, color, t0, dur, f, out):
+def _leg(name, pts, width, color, t0, dur, f, out, opacity=1.0, head=True):
     """One connection drawing itself in from t0 over dur frames. Returns 1
     once it has arrived."""
     p = (f - t0) / float(dur)
     if p <= 0:
         return 0
-    out.append('<g class="link" data-link="%s" data-progress="%.3f">%s</g>'
-               % (name, min(1.0, p), G.link(pts, color=color, width=width,
-                                            progress=p, key=("tklink", name))))
+    out.append('<g class="link" data-link="%s" data-progress="%.3f" '
+               'data-opacity="%.2f">%s</g>'
+               % (name, min(1.0, p), opacity,
+                  G.link(pts, color=color, width=width, progress=p, opacity=opacity,
+                         head=head, key=("tklink", name))))
     return 1 if p >= 1 else 0
 
 
@@ -153,9 +161,15 @@ def _links(f):
     if f < CONVERGE_AT:
         return []
     out, arrived = [], 0
+    # the sources' spokes, faint, meeting at the hub; then hub -> Ingest UI
+    for i in range(len(L.SOURCES)):
+        _leg("spoke_%d" % i, L.spoke(i), FAINT_W, L.FLOW, CONVERGE_AT, LINK_T, f, out,
+             opacity=FAINT, head=False)
+    _leg("hub_to_ingest", L.hub_to_ingest(), FAINT_W, L.FLOW, HUB_AT, 8, f, out,
+         opacity=FAINT, head=False)
     for i, name in enumerate(INTO_STAC):
         pts = getattr(L, name)()
-        t0 = CONVERGE_AT + LINK_STAGGER * i
+        t0 = INTO_AT + LINK_STAGGER * i
         arrived += _leg(name, pts, G.STAC_MAIN_W, L.FLOW, t0, LINK_T, f, out)
         since = f - (t0 + LINK_T)
         if 0 <= since < PULSE_T:
@@ -163,6 +177,10 @@ def _links(f):
                                     strength=1 - since / float(PULSE_T), r=16))
     for name, width in OUT_OF_STAC:
         _leg(name, getattr(L, name)(), width, L.FLOW, OUT_AT, LINK_T, f, out)
+    # TinaCMS -> the four pages, faint, once Portal's leg has landed
+    for i in range(len(L.PORTAL_SHOTS) if hasattr(L, "PORTAL_SHOTS") else 4):
+        _leg("portal_fan_%d" % i, L.portal_fan(i), FAINT_W, L.FLOW, FAN_AT, LINK_T, f,
+             out, opacity=FAINT, head=False)
     stubs, trunk = engagement()
     for i, pts in enumerate(stubs):
         out.append('<g class="link" data-link="engage_stub">%s</g>'

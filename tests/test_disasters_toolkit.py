@@ -88,19 +88,32 @@ sampled = sorted({0, T.ALL_AT - 1} | {T.step_start(s) + T.APPEAR + 1
 docs = {f: T.toolkit_svg(f) for f in sampled}
 
 def links(doc):
-    return {n: float(p) for n, p in re.findall(
-        r'<g class="link" data-link="([a-z_]+)" data-progress="([0-9.]+)">', doc)}
+    return {n: float(p) for n, p, _o in re.findall(
+        r'<g class="link" data-link="([a-z0-9_]+)" data-progress="([0-9.]+)" '
+        r'data-opacity="([0-9.]+)">', doc)}
+
+def opacities(doc):
+    return {n: float(o) for n, _p, o in re.findall(
+        r'<g class="link" data-link="([a-z0-9_]+)" data-progress="([0-9.]+)" '
+        r'data-opacity="([0-9.]+)">', doc)}
 
 # the order of the connections: into STAC first, then out, then Community's
-out_before_in, engage_before_in = [], []
+out_before_in, engage_before_in, fan_before_portal, in_before_spokes = [], [], [], []
 for f in range(T.CONVERGE_AT, T.TOTAL, 2):
     lk = links(T.toolkit_svg(f))
     all_in = all(lk.get(n, 0) >= 1 for n in T.INTO_STAC)
+    spokes_met = all(lk.get("spoke_%%d" %% i, 0) >= 1 for i in range(len(L.SOURCES)))
+    if any(n in lk for n in T.INTO_STAC) and not spokes_met:
+        in_before_spokes.append(f)
+    if any("portal_fan_%%d" %% i in lk for i in range(4)) and lk.get("stac_to_portal", 0) < 1:
+        fan_before_portal.append(f)
     if any(n in lk for n, _w in T.OUT_OF_STAC) and not all_in:
         out_before_in.append(f)
     if "engagement" in lk and not all_in:
         engage_before_in.append(f)
 last_links = links(last)
+last_op = opacities(last)
+faint = [n for n in last_op if n.startswith(("spoke_", "portal_fan_", "hub_to"))]
 stubs, trunk = T.engagement()
 sx, sy, sw, sh = L.BOX_STAC
 cx0, cy0, cw, ch = L.BOX_COMMUNITY
@@ -129,6 +142,9 @@ print(json.dumps(dict(
     paths={f: paths(d) for f, d in docs.items()}, paths_last=paths(last),
     converge_at=T.CONVERGE_AT, all_at=T.ALL_AT,
     out_before_in=out_before_in, engage_before_in=engage_before_in,
+    fan_before_portal=fan_before_portal, in_before_spokes=in_before_spokes,
+    faint=faint, faint_ok=all(last_op[n] < 0.6 for n in faint),
+    n_sources=len(L.SOURCES),
     last_links=last_links, into=list(T.INTO_STAC), outs=[n for n, _w in T.OUT_OF_STAC],
     engage_grey=engage_grey,
     trunk_end_on_stac=(trunk[-1][0] == sx + sw and sy < trunk[-1][1] < sy + sh),
@@ -218,6 +234,15 @@ class ToolkitCase(unittest.TestCase):
         self.assertEqual(P["out_before_in"], [], "a leg out of STAC drew before the legs in")
         self.assertEqual(P["engage_before_in"], [])
         for n in P["into"] + P["outs"] + ["engagement"]:
+            self.assertEqual(P["last_links"].get(n), 1.0, "%s never finished drawing" % n)
+
+    def test_the_sources_spokes_and_the_portal_fan_are_there_faintly(self):
+        P = self.P
+        self.assertEqual(P["in_before_spokes"], [], "a leg into STAC drew before the spokes met")
+        self.assertEqual(P["fan_before_portal"], [], "the Portal fan drew before its leg landed")
+        self.assertEqual(len(P["faint"]), P["n_sources"] + 1 + 4)
+        self.assertTrue(P["faint_ok"], "spokes and fan should be faint, not at full weight")
+        for n in P["faint"]:
             self.assertEqual(P["last_links"].get(n), 1.0, "%s never finished drawing" % n)
 
     def test_community_is_linked_to_stac_as_engagement_not_data(self):
