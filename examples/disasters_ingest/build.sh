@@ -123,7 +123,7 @@ build_one() {
     -loop "$LOOP" "$out"
 
   echo "==> 4/4  verifying"
-  magick identify -format '%n frames, %wx%h\n' "$out" | head -1
+  magick identify -format '%n frames, %wx%h\n' "$out" | sed -n 1p
   # A GIF loops only if it carries the NETSCAPE2.0 extension. Check the file
   # itself: a wrong flag still builds a perfectly good GIF that does the wrong
   # thing, and nothing else would notice.
