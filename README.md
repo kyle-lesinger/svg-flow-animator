@@ -339,6 +339,18 @@ them otherwise, is in
 Commit history carries no co-author trailers for the assistant by convention;
 this section is the disclosure.
 
+In the wording of NASA's disclosure template:
+
+> **Super Intelligence (SI) Usage Disclosure**
+>
+> This document was created with assistance from Claude Code (Anthropic, Claude
+> Fable 5.1) for writing and refactoring the Python code and tests that
+> generate the animated diagrams, drafting the project documentation, and
+> embedding provenance metadata in the rendered files. The content has been
+> reviewed and edited by Kyle Lesinger. More information on the extent and
+> nature of SI usage is included in this section and in
+> [examples/disasters_ingest/README.md](examples/disasters_ingest/README.md#labeling-the-output).
+
 ## License
 
 MIT
