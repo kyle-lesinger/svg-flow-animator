@@ -32,6 +32,7 @@ svg_flow_animator/     the reusable package
   editor.py            generates a browser editor from that registry
   serve.py             live-preview server behind an editor (/render, /save)
   render.py            parallel rasterisation, GIF / APNG assembly, export()
+  provenance.py        embed a comment in a finished GIF / PNG / APNG, read it back
   workflow.py          declared workflow diagrams: components, auto-layout, beats
   gantt.py             Gantt timeline, animated bar by bar
   gantt_editor.py      browser page for a timeline's dates (schedule.json)

@@ -47,6 +47,7 @@ brew install librsvg ffmpeg     # rsvg-convert, ffmpeg
 | `svg` | Element emitters. String-based; frames are write-once |
 | `timeline` | `Stage` objects, flow connectors, pulses, auto-placed callouts |
 | `render` | Parallel rasterisation, GIF and APNG assembly |
+| `provenance` | Embeds a comment in a finished GIF, PNG or APNG, and reads it back |
 | `workflow` | Declared workflow diagrams: reusable components, automatic layout, beat-by-beat animation |
 | `gantt` | A Gantt timeline, animated bar by bar |
 | `gantt_editor` | A browser page for a timeline's dates: drag the bars or type them |
@@ -329,9 +330,10 @@ and you get the same bytes.
 
 Under NASA's definitions (NID 1383.155) this is **SI-assisted** work: the
 human keeps primary creative direction and editorial control and the SI is
-the tool. What that means for the GIFs this builds for NASA, and how to apply
-NASA's "Generated Content" label if a reviewer classifies them otherwise, is
-in
+the tool. Every GIF and PNG the disasters build writes says so in embedded
+metadata (`svg_flow_animator.provenance`). What that means for those outputs,
+and how to apply NASA's "Generated Content" label if a reviewer classifies
+them otherwise, is in
 [examples/disasters_ingest/README.md](examples/disasters_ingest/README.md#labeling-the-output).
 
 Commit history carries no co-author trailers for the assistant by convention;

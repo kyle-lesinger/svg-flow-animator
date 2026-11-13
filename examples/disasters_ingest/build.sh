@@ -135,6 +135,10 @@ build_one() {
     echo "FAIL: $out should loop but plays once"; exit 1
   fi
   [ "$LOOP" = "-1" ] && echo "    plays once" || echo "    loops"
+  # Embedded provenance (NID 1383.155: SI-assisted media carries metadata
+  # saying so). ffmpeg drops -metadata for GIF, so it is written afterwards
+  # and read back from the file.
+  python3 "$WD/gen_frames.py" "--stamp=$out"
   ls -lh "$out" | awk '{print "    size: " $5}'
   echo "    done -> $out"
 }
@@ -159,6 +163,7 @@ if [ "$POSTER" = "1" ]; then
   BYTES=$(stat -f%z "$OUT_PNG")
   [ "$BYTES" -gt 400000 ] || { echo "FAIL: poster is only $BYTES bytes -- sprites are probably missing"; exit 1; }
   magick identify -format '    %wx%h\n' "$OUT_PNG"
+  python3 "$WD/gen_frames.py" "--stamp=$OUT_PNG"
   echo "    done -> $OUT_PNG  ($(echo "scale=1; $BYTES/1048576" | bc) MB)"
   exit 0
 fi

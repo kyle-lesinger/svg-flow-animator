@@ -144,14 +144,20 @@ own exports. The
 author's reading is that this is **SI-assisted** under NID 1383.155, so the
 output carries no watermark.
 
-Two open items follow from that reading:
+Every GIF and PNG the build writes carries that statement as embedded
+metadata, which is what NID 1383.155 asks of SI-assisted media: a GIF
+Comment Extension, or a PNG `tEXt` chunk, written by
+`svg_flow_animator.provenance` after ffmpeg and rsvg-convert finish (ffmpeg
+accepts `-metadata` for these formats and writes nothing). The wording is
+`PROVENANCE` in `gen_frames.py`; `build.sh` reads it back from each file
+before reporting done, and so does
 
-- The approval authority decides the category, not the author. If a reviewer
-  classifies the GIFs as generated, stamp the label on each output at the
-  sizes above and re-release; nothing in the pipeline prevents it.
-- SI-assisted media must carry embedded metadata saying so. The build does
-  not yet write any; ffmpeg can set a GIF comment extension and an APNG text
-  chunk, and that is the place to put it, worded in current terminology.
+    python3 -c 'from svg_flow_animator import provenance; print(provenance.read("sections/intro.gif"))'
+
+One item stays open: the approval authority decides the category, not the
+author. If a reviewer classifies the GIFs as generated, stamp the label on
+each output at the sizes above and re-release; nothing in the pipeline
+prevents it.
 
 ## Files
 

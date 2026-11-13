@@ -36,6 +36,17 @@ MIN_BUBBLE_SEC = 7.0            # every caption must be readable this long
 MIN_BUBBLE_FRAMES = int(round(MIN_BUBBLE_SEC * FPS))
 GAP = 12                        # quiet frames between one caption and the next
 
+# Embedded in every GIF and PNG the build writes (NID 1383.155: SI-assisted
+# media carries metadata saying so). ASCII, in current terminology; see the
+# README's "Labeling the output".
+PROVENANCE = (
+    "SI-assisted media (NASA NID 1383.155). A human-directed diagram rendered "
+    "deterministically from code: the story, wording and layout are the "
+    "author's, and no generative image model was used. The drawing code was "
+    "written with a large language model coding assistant (Claude Code, "
+    "Anthropic). Author: Kyle Lesinger, NASA Disasters program. "
+    "Source: https://github.com/kyle-lesinger/svg-flow-animator")
+
 # The five ways in, left to right as the block draws them. Defined ABOVE the
 # stage table so each beat can anchor its caption on the mark it is naming --
 # one shared anchor pointed every caption at the same spot regardless of which
@@ -1880,6 +1891,18 @@ def main():
                      else ",".join(SECTION_SCOPE.get(key, ("all",))))
             print("  %-14s %-22s view=(%d %d %d %d)  gif=%dx%d  moves=%s"
                   % (key, label, vx, vy, vw, vh, gw, gh, scope))
+        return
+
+    # Embedded provenance for a finished output. Read back from the file: the
+    # point of the metadata is that it is in there, not that this ran.
+    stamp_of = _arg(argv, "--stamp")
+    if stamp_of:
+        from svg_flow_animator import provenance
+        provenance.stamp(stamp_of, PROVENANCE)
+        got = provenance.read(stamp_of)
+        if got != [PROVENANCE]:
+            raise RuntimeError(f"{stamp_of}: provenance did not read back: {got!r}")
+        print(f"    provenance: {PROVENANCE[:48]}...")
         return
 
     # Machine-readable, for build.sh: a section is rendered at its own aspect,
