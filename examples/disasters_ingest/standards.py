@@ -50,19 +50,22 @@ OPEN_AT = SQUEEZE + 8 * FPS               # 280: the bottleneck has had 8 s
 MORPH = 45
 FIX_BEAT = 70
 STAC_BEAT = OPEN_AT + FIX_BEAT            # 350: the open standard
-DEPLOY_AT = OPEN_AT + 120                 # 400: deployed into every application
+DEPLOY_AT = OPEN_AT + 140                 # 420: deployed into every application
 END_HOLD = 10                             # after the last copy lands: the picture, still
+# Four captions, each on screen at least 8 s (MIN_DWELL), set large: they are
+# read from the back of a room while the picture moves.
 CAPTIONS = (
     (0, "NASA, NOAA and commercial satellites, each delivering data in its own format."),
     (SQUEEZE, "Inconsistent formats mean manual work: download, convert by hand, "
               "copy into every tool."),
-    (OPEN_AT, "Scalable, cloud-native ingest converts every format to one standard: "
-              "cloud-optimized, stored once."),
-    (STAC_BEAT, "Indexed in STAC, an open standard, so any compatible tool reads the "
-                "same data in place."),
-    (DEPLOY_AT, "From one interoperable catalog, data deploys into every user's "
+    (OPEN_AT, "Scalable, cloud-native ingest converts every format to one standard, "
+              "indexed in STAC."),
+    (DEPLOY_AT, "From one open, interoperable catalog, data deploys to every "
                 "application: PORTAL, MMGIS, ArcGIS."),
 )
+MIN_DWELL = 8 * FPS
+CAPTION = (150, 780, 1300, 72)            # wider and taller than the story's: bigger words
+CAPTION_SIZE = 22                         # the story's are 15
 STATION_LIT = [(NAME_STATIONS + 16 * k, OPEN_AT - FADE) for k in range(3)]
 PROBLEM_TITLE = "Inconsistent data: every format needs its own handling"
 TITLE = "One standard, every tool: scalable, interoperable, compatible"
@@ -104,7 +107,6 @@ N_APPS = len(APPS)
 BY_HAND = "converted by hand"             # a card's status while the neck is shut...
 DIRECT = "reads STAC directly"            # ...and once the standard is in place
 ROUTE_GREY = "#9aa1ab"
-CAPTION = B.CAPTION
 LEGEND_Y = 700
 
 # ------------------------------------------------------------------ passes ---
@@ -176,6 +178,8 @@ LANDED_ORDER = sorted(range(N), key=lambda i: LANDS[i])
 # frame left on screen is the finished picture exactly.
 TOTAL = int(math.ceil(max(LANDS))) + END_HOLD
 assert TOTAL <= MAX_TOTAL, (TOTAL, MAX_TOTAL)
+DWELL = [b - a for (a, _s), (b, _t) in zip(CAPTIONS, CAPTIONS[1:])] + [TOTAL - CAPTIONS[-1][0]]
+assert min(DWELL) >= MIN_DWELL, DWELL
 
 
 def updates(f):
@@ -410,7 +414,8 @@ def _caption(f):
         out.append('<g class="caption" opacity="%.3f">' % a
                    + S.box(x, y, w, h, L.BUBBLE_BG, stroke=L.BUBBLE_BG, rx=12,
                            sw=1.5, key=("dcap",))
-                   + G.text(x + w / 2, y + 36, s, 15, fill=L.BUBBLE_FG, anchor="middle")
+                   + G.text(x + w / 2, y + 47, s, CAPTION_SIZE, fill=L.BUBBLE_FG,
+                            anchor="middle")
                    + "</g>")
     return "".join(out)
 

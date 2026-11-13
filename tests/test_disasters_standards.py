@@ -102,18 +102,13 @@ for k, (title, sub, _fill) in enumerate(T.COLUMNS):
     for s in (title.split(" ") if k == T.INGEST else [title]) + sub.split(" · "):
         fits.append(dict(s=s, el=element(last, s), x0=hx + 2, x1=hx + hw - 2))
 cx, cy, cw, ch = T.CAPTION
-for key, (_start, s) in zip(("squeeze", "stac", "deploy", "last"),
-                            (T.CAPTIONS[1], T.CAPTIONS[3], T.CAPTIONS[4], T.CAPTIONS[4])):
-    el = element(frames[key], s)
+def caption_fit(f, s):
+    el = element(T.standards_svg(f), s)
     # white on the bubble: recoloured so the ink can be measured on white
     el = el.replace('fill="%%s"' %% L.BUBBLE_FG, 'fill="#000000"') if el else el
-    fits.append(dict(s=s, el=el, x0=cx + 12, x1=cx + cw - 12))
-el = element(T.standards_svg(T.OPEN_AT + 20), T.CAPTIONS[2][1])
-fits.append(dict(s=T.CAPTIONS[2][1], x0=cx + 12, x1=cx + cw - 12,
-                 el=el.replace('fill="%%s"' %% L.BUBBLE_FG, 'fill="#000000"') if el else el))
-el = element(T.standards_svg(30), T.CAPTIONS[0][1])
-fits.append(dict(s=T.CAPTIONS[0][1], x0=cx + 12, x1=cx + cw - 12,
-                 el=el.replace('fill="%%s"' %% L.BUBBLE_FG, 'fill="#000000"') if el else el))
+    return dict(s=s, el=el, x0=cx + 12, x1=cx + cw - 12)
+for start, s in T.CAPTIONS:
+    fits.append(caption_fit(start + 30, s))
 fits.append(dict(s=T.TITLE, el=element(last, T.TITLE), x0=20, x1=W - 20))
 fits.append(dict(s=T.PROBLEM_TITLE, el=element(frames["squeeze"], T.PROBLEM_TITLE),
                  x0=20, x1=W - 20))
@@ -154,6 +149,9 @@ print(json.dumps(dict(
     before=sum(1 for t in T.ARRIVAL if t < T.OPEN_AT),
     after=sum(1 for t in T.ARRIVAL if T.OPEN_AT <= t < T.OPEN_AT + (T.OPEN_AT - T.SQUEEZE)),
     fits=fits, canvas=(W, H),
+    n_captions=len(T.CAPTIONS), dwell=T.DWELL, min_dwell=T.MIN_DWELL,
+    caption_size=T.CAPTION_SIZE, story_caption_size=15,
+    caption_box=T.CAPTION, caption_in_last=count_cls(last, "caption"),
     leaks={k: leaks(d) for k, d in frames.items()},
 )))
 '''
@@ -253,6 +251,16 @@ class StandardsCase(unittest.TestCase):
         for href in self.P["needed"]:
             self.assertIn(href, last["images"], href)
 
+    def test_each_caption_stays_long_enough_to_read_and_is_set_large(self):
+        P = self.P
+        self.assertLessEqual(P["n_captions"], 4)
+        self.assertGreaterEqual(min(P["dwell"]), P["min_dwell"], P["dwell"])
+        self.assertGreaterEqual(P["min_dwell"], 8 * P["fps"])
+        self.assertGreater(P["caption_size"], P["story_caption_size"])
+        x, y, w, h = P["caption_box"]
+        self.assertLessEqual(y + h, P["canvas"][1])
+        self.assertEqual(P["caption_in_last"], 1)
+
     def test_the_apps_are_the_destinations_so_there_is_no_web_apps_column(self):
         self.assertFalse(self.P["any_web_apps"])
         self.assertEqual(self.P["n_apps"], 3)
@@ -263,7 +271,7 @@ class StandardsCase(unittest.TestCase):
     @sup.needs_rsvg
     def test_every_word_fits_where_it_sits_as_rendered(self):
         cw, ch = self.P["canvas"]
-        self.assertGreaterEqual(len(self.P["fits"]), 3 * 4 + 3 * 3 + 6 + 2)
+        self.assertGreaterEqual(len(self.P["fits"]), 3 * 4 + 3 * 3 + 4 + 2)
         for fit in self.P["fits"]:
             self.assertIsNotNone(fit["el"], "%r is not drawn" % fit["s"])
             x0, x1 = sup.ink_extent(fit["el"], cw, ch)
