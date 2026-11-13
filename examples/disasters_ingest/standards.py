@@ -84,7 +84,10 @@ COL_W, COL_GAP = 116, 8
 COL_X = tuple(660 + COL_W / 2 + k * (COL_W + COL_GAP) for k in range(3))
 SPLIT_X = COL_X[STAC] + COL_W / 2         # 1024: a granule leaves STAC as one copy per app
 NECK_END = SPLIT_X
-ROUTE_SPREAD = 40                         # the drawn routes leave STAC this far apart
+# Every route leaves STAC from one point on the centre line, and every dot
+# converges to that line across STAC's column, so a copy rides its drawn route
+# exactly instead of bending off its own lane beside the line.
+GATHER_X = COL_X[STAC] - COL_W / 2        # where a dot starts converging
 BEND_K = 60                               # how far a route's bend reaches, in x
 BEND_X = 1130                             # a route runs level from here into its card
 CARD_X, CARD_W, CARD_H = 1150, 420, 136
@@ -119,6 +122,9 @@ def globe_at(f):
 
 # -------------------------------------------------------------------- dots ---
 T_EMIT = 14                               # frames from the swath to the funnel
+EMIT_EVERY = 4                            # frames between dots while a satellite records
+LANE_SPREAD = 110                         # dots ride the channel this far off centre
+DRAIN = 2.5                               # frames between queued dots once the neck opens
 V, V_OPEN = 5.0, 11.0
 FAN_T = 18                                # frames to bend out of STAC towards a card
 # A granule's longest trip once the neck is open: swath to funnel, funnel to
@@ -131,8 +137,9 @@ LAST_EMIT = MAX_TOTAL - 1 - END_HOLD - TRANSIT
 
 def _emissions():
     """(emit frame, pass index) for every dot: off the scan line, every few
-    frames while a satellite records -- oftener once the neck is open, though
-    not as often as the story's, since every one becomes three on the right."""
+    frames while a satellite records. Not oftener once the neck is open, as
+    the story's are: every one becomes three on the right, and a dense train
+    along the routes distracts from the picture."""
     out = []
     for k, pz in enumerate(PASSES):
         a, b = pz["rec"]
@@ -141,13 +148,13 @@ def _emissions():
         f = a
         while f < b and f <= LAST_EMIT:
             out.append((f, k))
-            f += 4 if f < OPEN_AT else 3
+            f += EMIT_EVERY
     return out
 
 
 EMIT = _emissions()
 N = len(EMIT)
-LANE = [MID_Y - 170 + 340 * ST._hash(i, 1) for i in range(N)]
+LANE = [MID_Y - LANE_SPREAD + 2 * LANE_SPREAD * ST._hash(i, 1) for i in range(N)]
 SAT = [PASSES[k]["sat"] for _e, k in EMIT]
 COLOR = [ST.SAT_COLOR[s] for s in SAT]
 # Through the neck: (frames, x from, x to, split?). Dwelling at a station is a
@@ -159,7 +166,7 @@ NECK_PATH = ((12, NECK_X, STATIONS[0], False), (22, STATIONS[0], STATIONS[0], Fa
              (16, STATIONS[2], SPLIT_X, False))
 FUNNEL = Funnel(SRC_X, MOUTH_X, NECK_X, NECK_END, MID_Y, MOUTH_H, NECK_H, OPEN_H,
                 SPLIT_X, OPEN_AT, MORPH, [e + T_EMIT for e, _k in EMIT], LANE,
-                NECK_PATH, v=V, v_open=V_OPEN)
+                NECK_PATH, v=V, v_open=V_OPEN, drain=DRAIN)
 # When each dot reaches STAC's edge, in either mode: the funnel's "arrival".
 AT_STAC = [FUNNEL.arrival(i) for i in range(N)]
 LANDS = [t + FAN_T + (CARD_X - BEND_X) / V_OPEN for t in AT_STAC]
@@ -176,16 +183,17 @@ def updates(f):
     return sum(1 for t in ARRIVAL if t <= f)
 
 
-def exit_y(i):
-    """Where dot i leaves STAC: a manual copy on the centre line, an automated
-    one on its own lane, inside the channel as open as it is by then."""
-    if FUNNEL.mode[i] == "neck":
-        return MID_Y
-    return FUNNEL.inside(SPLIT_X, LANE[i], FUNNEL.morph(AT_STAC[i]))
+def gather(x, y):
+    """y pulled onto the centre line as x crosses STAC's column, so a dot
+    reaches STAC's edge where the routes begin."""
+    if x <= GATHER_X:
+        return y
+    t = G.smooth(min(1.0, (x - GATHER_X) / (SPLIT_X - GATHER_X)))
+    return y + (MID_Y - y) * t
 
 
-def route_start(r):
-    return (SPLIT_X, MID_Y + (r - (N_APPS - 1) / 2.0) * ROUTE_SPREAD)
+def route_start(_r):
+    return (SPLIT_X, MID_Y)
 
 
 def bend(p0, r, u):
@@ -219,14 +227,14 @@ def positions(i, f):
     t2 = AT_STAC[i]
     if f < t2:
         auto = FUNNEL.mode[i] == "open"
-        return [(x, y, ST.COG_SHAPE if auto and x >= COL_X[INGEST] else own, None)
-                for x, y in FUNNEL.position(i, f)]
+        return [(x, gather(x, y), ST.COG_SHAPE if auto and x >= COL_X[INGEST] else own,
+                 None) for x, y in FUNNEL.position(i, f)]
     if f >= LANDS[i]:
         return []
     shape = ST.COG_SHAPE if FUNNEL.mode[i] == "open" else own
     if f < t2 + FAN_T:
         u = G.smooth((f - t2) / float(FAN_T))
-        return [bend((SPLIT_X, exit_y(i)), r, u) + (shape, r) for r in range(N_APPS)]
+        return [bend(route_start(r), r, u) + (shape, r) for r in range(N_APPS)]
     x = BEND_X + V_OPEN * (f - t2 - FAN_T)
     return [(x, CARD_MID[r], shape, r) for r in range(N_APPS)]
 
