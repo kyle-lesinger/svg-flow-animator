@@ -19,6 +19,7 @@ Needs `rsvg-convert` and `ffmpeg` on PATH. No Python packages.
     ./build.sh --section=journey      # -> sections/journey.gif, problem and fix
     ./build.sh --section=bottleneck   # -> sections/bottleneck.gif, the bottleneck solved
     ./build.sh --section=story        # -> sections/story.gif, the two combined, 45 s
+    ./build.sh --section=standards    # -> sections/standards.gif, one standard, every tool, 40 s
     ./build.sh --section=uses         # -> sections/uses.gif, data to every audience
     ./build.sh --section=response     # -> sections/response.gif, the whole network, 15 s
     ./build.sh --section=infra        # -> sections/infra.gif, the reusable infrastructure
@@ -173,6 +174,7 @@ prevents it.
     bottleneck.py     the bottleneck slide: a queue behind a neck that opens
     funnel.py         that queue, shared by the bottleneck and story slides
     story.py          globe + formats + bottleneck + automation, in 45 s
+    standards.py      formats to one standard, deployed to PORTAL, MMGIS, ArcGIS, in 40 s
     uses.py           the uses slide: silos and hand-offs, then one system
     response.py       the response slide: the whole network, end to end, in 15 s
     infra.py          the infrastructure slide: the eight reusable pieces, no paths

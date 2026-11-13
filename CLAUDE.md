@@ -96,6 +96,7 @@ That build also emits one GIF per chapter, plus a still of the whole thing:
 ./build.sh --section=journey   # -> sections/journey.gif, problem and fix
 ./build.sh --section=bottleneck  # -> sections/bottleneck.gif, the bottleneck solved
 ./build.sh --section=story     # -> sections/story.gif, the two combined, 45 s
+./build.sh --section=standards # -> sections/standards.gif, one standard, every tool, 40 s
 ./build.sh --section=uses      # -> sections/uses.gif, data to every audience
 ./build.sh --section=response  # -> sections/response.gif, the whole network, 15 s
 ./build.sh --section=infra     # -> sections/infra.gif, the reusable infrastructure
@@ -131,6 +132,14 @@ its own picture on its own timeline, not on `_SPEC`, and each plays once:
   globe, a shape per data format (incl. a CSDA commercial SAR, Umbra), the
   manual bottleneck, then automated ingest
   to a cloud-optimized format, STAC and web apps (`story.py`).
+- `standards`: the story's picture told for its technical qualities, in
+  40 s -- inconsistent formats (a shape per format), a short manual
+  bottleneck (8 s), then scalable cloud-native ingest to one standard,
+  stored once, indexed in STAC (open standard, interoperable); from STAC's
+  edge every granule fans out as one copy per application -- PORTAL,
+  MMGIS, ArcGIS -- as cards on the right that read "reads STAC directly".
+  There is no Web apps column: the apps are the destinations. A manual
+  copy keeps its format shape all the way to the cards (`standards.py`).
 - `uses`: what the data is for -- a web dashboard, an analysis tool, a news
   or event article, a lesson. Before STAC each app is its own silo (own copy,
   own lane, own schedule) with a person doing the hand-off by hand; then one

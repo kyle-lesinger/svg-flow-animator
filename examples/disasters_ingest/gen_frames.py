@@ -230,6 +230,7 @@ INTRO = "intro"
 JOURNEY = "journey"
 BOTTLENECK = "bottleneck"
 STORY = "story"
+STANDARDS = "standards"
 USES = "uses"
 RESPONSE = "response"
 INFRA = "infra"
@@ -248,6 +249,7 @@ def slides():
     import journey
     import infra
     import response
+    import standards
     import story
     import toolkit
     import uses
@@ -257,6 +259,8 @@ def slides():
             BOTTLENECK: ("The bottleneck, solved", bottleneck.bottleneck_svg,
                          bottleneck.TOTAL),
             STORY: ("Observe to decide", story.story_svg, story.TOTAL),
+            STANDARDS: ("One standard, every tool", standards.standards_svg,
+                        standards.TOTAL),
             USES: ("Data to every audience", uses.uses_svg, uses.TOTAL),
             RESPONSE: ("Observation to action", response.response_svg,
                        response.TOTAL),
@@ -338,7 +342,7 @@ def section_gif(name=None):
     and on these frames is smaller too. The uses slide carries four page
     screenshots and a map, so it is encoded the same way.
     """
-    if name in (JOURNEY, STORY, USES, RESPONSE, INFRA, TOOLKIT):
+    if name in (JOURNEY, STORY, STANDARDS, USES, RESPONSE, INFRA, TOOLKIT):
         return section_loop(name), 256, "full"
     return section_loop(name), 128, "diff"
 

@@ -199,6 +199,32 @@ tests check no dot changes shape on the manual path, and none keeps its shape
 past ingest. The queue is the bottleneck's own (`funnel.py`), and HDF4 is a
 cross because a hexagon, at dot size, read as the cloud-optimized circle.
 
+`standards` is the story's picture told for its technical qualities, in
+40 seconds: data inconsistency, scalable technology, standards,
+compatibility. The same showcase globe and cast, the same shape per format;
+the globe steps aside into the bottleneck's funnel, but the bottleneck is
+kept to 8 seconds -- long enough to see the queue back up and the three
+stations named (download, convert by hand, copy per tool) -- and nothing
+splits there. Then the neck opens into three columns, not four: automated
+ingest (scalable, cloud-native, one format), cloud storage (stored once,
+cloud-optimized) and STAC (open standard, interoperable). There is no "Web
+apps" column because the applications are the destinations: three cards on
+the right -- PORTAL (its home page), MMGIS (the analysis tool), ArcGIS (the
+Online and Desktop marks) -- with routes from STAC's right edge into each.
+The funnel's `decide_x` is STAC's edge, so `Funnel.arrival()` is when a dot
+reaches STAC in either mode; from there every dot is one copy per
+application, bending out along its route (the response slide's cubic) and
+running level into its card, where every card's "N updates" counts up in
+step. The routes are grey and the cards say "converted by hand" while the
+neck is shut, green and "reads STAC directly" once it has opened; a manual
+copy keeps its format shape all the way to the card, because the manual
+path never standardised anything, and only automated ingest makes the
+circle. Emission is a little sparser than the story's once the neck is open
+(every three frames, not two), since each granule becomes three on the
+right, and it stops at the last granule that can land before the closing
+hold; `TOTAL` is derived from that landing, so the frame left on screen has
+every card holding the same count and nothing in flight.
+
 `uses` closes the slides: what the data is for -- a web dashboard, an analysis
 tool, a news or event article, a lesson -- before STAC and after. Before, there
 is no catalog: each app is a silo, with its own copy of the data, its own level
