@@ -19,6 +19,10 @@ Needs `rsvg-convert` and `ffmpeg` on PATH. No Python packages.
     ./build.sh --section=journey      # -> sections/journey.gif, problem and fix
     ./build.sh --section=bottleneck   # -> sections/bottleneck.gif, the bottleneck solved
     ./build.sh --section=story        # -> sections/story.gif, the two combined, 45 s
+    ./build.sh --section=uses         # -> sections/uses.gif, data to every audience
+    ./build.sh --section=infra        # -> sections/infra.gif, the reusable infrastructure
+    ./build.sh --poster=infra         # -> sections/infra.png, the reusable pieces only
+    ./build.sh --section=toolkit      # -> sections/toolkit.gif, the toolkit, assembled
     ./build.sh --section=egis         # -> sections/egis.gif
     ./build.sh --all-sections         # -> sections/*.gif
 
@@ -103,6 +107,49 @@ diagram say something untrue.
 - **TinaCMS is one-way.** Portal Content has no return path to STAC — that
   integration does not exist yet. Do not add one for symmetry.
 
+## Labeling the output
+
+The GIFs and PNGs this builds are NASA external material, so NASA's media
+labeling rules apply to them. The rules, as of October 2026:
+
+- **NID 1383.155** (effective 15 Sep 2025, nominal expiry 15 Sep 2026)
+  distinguishes **AI-generated** media, where the AI contributes substantive
+  creative content, from **AI-assisted** media, where the human keeps primary
+  creative direction and editorial control and the AI is a tool. AI-generated
+  media must be visibly and permanently watermarked and carry embedded
+  metadata. AI-assisted media must carry embedded metadata that says so, but
+  no watermark.
+- **NASA Generative Content Labeling Guidelines** (NP-2025-08-6668-HQ,
+  5 Oct 2026) supplies the watermark: the words GENERATED / CONTENT stacked,
+  white on a black box with a white outline. On landscape media the box spans
+  at least 10% of the image width; on portrait media at least 5% of the
+  height; in every case inset 2.5% from the two nearest edges, in whichever
+  corner obstructs least. The artwork (`SI-Label-Icon.zip`: SVG, PNG, EPS,
+  AI) and overlay templates (`SI-Label-Templates.zip`: 5000 px PNGs per
+  orientation, plus a PowerPoint deck) are on NASA's Unified Visual
+  Communications System SharePoint and the Brand Center. They are **not**
+  checked in here; like the logos, they are NASA's to distribute.
+- NASA's Brand Center now says "SI" (super intelligence) for the same thing,
+  per Executive Order 14434 of 29 Sep 2026, and the asset files are named
+  `SI-*`. The label artwork itself still reads GENERATED CONTENT.
+
+How this diagram was made: the story, the wording, the architecture claims
+above and every nudge in `overrides.json` are the author's. The code that
+draws it was written with an AI coding assistant. No generative image model
+touched any frame; each one is a deterministic render of described geometry,
+and the logos and screenshots are extracted from NASA's own exports. The
+author's reading is that this is **AI-assisted** under NID 1383.155, so the
+output carries no watermark.
+
+Two open items follow from that reading:
+
+- The approval authority decides the category, not the author. If a reviewer
+  classifies the GIFs as generated, stamp the label on each output at the
+  sizes above and re-release; nothing in the pipeline prevents it.
+- AI-assisted media must carry embedded metadata saying so. The build does
+  not yet write any; ffmpeg can set a GIF comment extension and an APNG text
+  chunk, and that is the place to put it.
+
 ## Files
 
     edit.sh           launch the editor (start here)
@@ -116,6 +163,9 @@ diagram say something untrue.
     bottleneck.py     the bottleneck slide: a queue behind a neck that opens
     funnel.py         that queue, shared by the bottleneck and story slides
     story.py          globe + formats + bottleneck + automation, in 45 s
+    uses.py           the uses slide: silos and hand-offs, then one system
+    infra.py          the infrastructure slide: the eight reusable pieces, no paths
+    toolkit.py        the toolkit slide: a tray of the eight, moved into place
     style.py          flat vs sketch drawing backends
     rough.py          Excalidraw-style sketchy geometry (roughjs port)
     extract_assets.py re-extract artwork from a source SVG export

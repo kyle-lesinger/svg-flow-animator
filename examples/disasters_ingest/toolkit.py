@@ -1,0 +1,264 @@
+#!/usr/bin/env python3
+"""
+The toolkit slide: the reusable cyberinfrastructure laid out in a tray across
+the top -- Ingest UI, Airflow, STAC, JupyterHub, TinaCMS, MyST Docs, Grafana,
+GitHub -- and the ecosystem assembled beneath it, section by section, each
+piece moving down out of the tray to where it works.
+
+    1. Data Integration + Funded Projects & Partners  <- Ingest UI, Airflow
+    2. (the centre)                                   <- STAC
+    3. Federal Partners + Data Processing             <- JupyterHub, GitHub
+    4. Portal Content                                 <- TinaCMS
+    5. Community & Engagement                         <- MyST Docs, GitHub, Grafana
+
+GitHub is used in two places, so its first trip is a copy and it leaves the
+tray only on its last -- reuse, shown rather than said. Once everything is in
+place the tray gives way to what it adds up to: interoperable,
+cloud-optimized, cost-effective.
+
+The ecosystem is drawn at ECO_S of its size, below the tray, by the same block
+and piece functions as the diagram (gen_frames.*_block, infra.piece), so a
+piece lands exactly where the diagram draws it: in place it is drawn with no
+transform at all. In the tray, and on the way down, it is the same markup
+moved and scaled by a transform -- never re-placed geometry, which in sketch
+mode would boil. No data paths: like the infrastructure slide, this one is
+about what is built once and reused.
+"""
+import gen_frames as G
+import infra as I
+import layout as L
+from journey import ramp, window
+from style import S
+
+FPS, FADE = G.FPS, G.FADE
+
+TITLE = I.TITLE
+QUALITIES = I.QUALITIES
+NAMES = dict((k, name) for k, name, _role in I.PIECES)
+# (blocks that appear, pieces that come down into them)
+STEPS = (
+    (("integration", "funded"), ("ingest", "airflow")),
+    ((), ("stac",)),
+    (("egis", "processing"), ("jupyter", "github")),
+    (("portal",), ("tina",)),
+    (("community",), ("myst", "github", "grafana")),
+)
+COMMUNITY_PIECES = ("MyST Docs", "Github", "Grafana")
+GLOW_REST = 0.45
+
+# ------------------------------------------------------------------ layout ---
+TITLE_Y = 34
+SLOT_W, SLOT_H = 154, 72             # a tray slot's frame
+FIT_W, FIT_H = 138, 58               # the room a piece gets inside it
+SLOT_TOP = 50
+SLOT_PITCH = 172
+LABEL_Y = SLOT_TOP + SLOT_H + 18
+ECO_Y = 156                          # the ecosystem, below the tray...
+ECO_S = (L.H - ECO_Y - 4) / float(L.H)
+ECO_X = (L.W - L.W * ECO_S) / 2      # ...scaled to fit, centred
+
+
+def slot_c(k):
+    """Centre of the tray slot for piece k, in canvas coordinates."""
+    return (L.W / 2 + (k - (len(I.KEYS) - 1) / 2.0) * SLOT_PITCH,
+            SLOT_TOP + SLOT_H / 2)
+
+
+def to_eco(p):
+    """Canvas point -> ecosystem coordinates (inside the scaled group)."""
+    return ((p[0] - ECO_X) / ECO_S, (p[1] - ECO_Y) / ECO_S)
+
+
+def to_canvas(p):
+    return (ECO_X + p[0] * ECO_S, ECO_Y + p[1] * ECO_S)
+
+
+# ---------------------------------------------------------------- timeline ---
+MAX_SECONDS = 30
+INTRO = 3 * FPS                      # the tray alone: here is the toolkit
+STEP = 4 * FPS                       # each section, and its pieces arriving
+APPEAR = 12                          # a section fades in...
+FLY = 24                             # ...then each piece takes this to land,
+STAGGER = 10                         # one after another
+LAND_FLASH = 14                      # the glow on landing, before it settles
+FINALE = 3 * FPS                     # all in place, and what it adds up to
+
+
+def step_start(s):
+    return INTRO + s * STEP
+
+
+ALL_AT = step_start(len(STEPS))
+TOTAL = ALL_AT + FINALE
+
+
+def _drops():
+    """[(step, order, key, part)]: every trip down. A piece used in two places
+    makes two trips, one per part, in the order its uses come."""
+    out, seen = [], {}
+    for s, (_blocks, keys) in enumerate(STEPS):
+        for j, key in enumerate(keys):
+            part = seen.get(key, 0)
+            seen[key] = part + 1
+            out.append((s, j, key, part))
+    return out
+
+
+DROPS = _drops()
+
+
+def drop_start(s, j):
+    return step_start(s) + APPEAR + STAGGER * j
+
+
+def landed_at(s, j):
+    return drop_start(s, j) + FLY
+
+
+# ------------------------------------------------------------------ pieces ---
+def _part(key, part):
+    return I.piece(key)[part], I.piece_rects(key)[part]
+
+
+def _center(rect):
+    x, y, w, h = rect
+    return (x + w / 2.0, y + h / 2.0)
+
+
+def tray_scale(key, part):
+    """Scale (in ecosystem units) that fits the part into a tray slot."""
+    _m, (_x, _y, w, h) = _part(key, part)
+    return min(FIT_W / float(w), FIT_H / float(h)) / ECO_S
+
+
+def state(s, j, f):
+    """'tray', 'flying' or 'placed' for drop (s, j) at frame f."""
+    if f < drop_start(s, j):
+        return "tray"
+    if f < landed_at(s, j):
+        return "flying"
+    return "placed"
+
+
+def _moved(markup, rect, c, k):
+    """`markup`, authored around `rect`, drawn centred on c at scale k."""
+    rx, ry = _center(rect)
+    return ('<g transform="translate(%.2f,%.2f) scale(%.4f) translate(%.2f,%.2f)">'
+            '%s</g>' % (c[0], c[1], k, -rx, -ry, markup))
+
+
+def _drop(s, j, key, part, f):
+    """One trip: in the tray, on the way down, or in place."""
+    markup, rect = _part(key, part)
+    st = state(s, j, f)
+    tag = ('<g class="piece" data-piece="%s" data-part="%d" data-state="%s">'
+           % (key, part, st))
+    if st == "placed":
+        land = landed_at(s, j)
+        glow = GLOW_REST + (1 - GLOW_REST) * window(f, land - FADE, land + LAND_FLASH)
+        return G.halo(*rect, strength=glow) + tag + markup + "</g>"
+    k0, c0 = tray_scale(key, part), to_eco(slot_c(I.KEYS.index(key)))
+    if st == "tray":
+        return tag + _moved(markup, rect, c0, k0) + "</g>"
+    t = G.smooth((f - drop_start(s, j)) / float(FLY))
+    c1 = _center(rect)
+    c = (c0[0] + (c1[0] - c0[0]) * t, c0[1] + (c1[1] - c0[1]) * t)
+    return tag + _moved(markup, rect, c, k0 + (1 - k0) * t) + "</g>"
+
+
+def _pieces(f):
+    """Every piece, wherever it is at frame f. A piece still to be used sits in
+    the tray; one used twice keeps its tray copy until its last trip starts."""
+    out, shown = [], set()
+    flying, placed = [], []
+    for s, j, key, part in DROPS:
+        st = state(s, j, f)
+        if st == "tray":
+            if key not in shown:          # one in the tray, however many trips
+                shown.add(key)
+                out.append(_drop(s, j, key, part, f))
+        elif st == "flying":
+            flying.append(_drop(s, j, key, part, f))
+        else:
+            placed.append(_drop(s, j, key, part, f))
+    # placed under resting, flying over everything
+    return placed + out + flying
+
+
+# ---------------------------------------------------------------- sections ---
+BLOCK_DRAW = {
+    "integration": lambda: G.integration_static(paths=False, pieces=False),
+    "funded": G.funded_static,
+    "egis": G.egis_block,
+    "processing": lambda: G.processing_block(pieces=False),
+    "portal": G.portal_block,
+    "community": lambda: G.community_block(skip=COMMUNITY_PIECES, note=False),
+}
+
+
+def _sections(f):
+    out = []
+    for s, (blocks, _keys) in enumerate(STEPS):
+        a = ramp(f, step_start(s), step_start(s) + APPEAR)
+        if a <= 0:
+            continue
+        for b in blocks:
+            out.append('<g class="block" data-block="%s" opacity="%.3f">%s</g>'
+                       % (b, a, BLOCK_DRAW[b]()))
+    return out
+
+
+# ------------------------------------------------------------------- frames --
+def _tray(f):
+    """The slots and their names: the toolkit. It gives way at the finale."""
+    a = 1 - ramp(f, ALL_AT, ALL_AT + FADE)
+    if a <= 0:
+        return ""
+    out = []
+    for k, key in enumerate(I.KEYS):
+        cx, cy = slot_c(k)
+        out.append(G.box(cx - SLOT_W / 2, SLOT_TOP, SLOT_W, SLOT_H, "#f6f8fc",
+                         stroke="#c9d3e6", rx=10, sw=1.5))
+        out.append(G.text(cx, LABEL_Y, NAMES[key], 12, anchor="middle",
+                          weight="bold"))
+    return '<g class="tray" opacity="%.3f">%s</g>' % (a, "".join(out))
+
+
+def pill_rects():
+    ws = [len(q) * 10.0 + 40 for q in QUALITIES]
+    gap = 18
+    x = L.W / 2 - (sum(ws) + gap * (len(ws) - 1)) / 2
+    out = []
+    for w in ws:
+        out.append((x, SLOT_TOP + SLOT_H / 2 - 14, w, 28))
+        x += w + gap
+    return out
+
+
+def _qualities(f):
+    a = ramp(f, ALL_AT, ALL_AT + FADE)
+    if a <= 0:
+        return ""
+    body = []
+    for q, (x, y, w, h) in zip(QUALITIES, pill_rects()):
+        body.append(G.box(x, y, w, h, "#eef3fe", stroke=L.GLOW, rx=14)
+                    + G.text(x + w / 2, y + 20, q, 15, fill=L.GLOW,
+                             anchor="middle", weight="bold"))
+    return '<g class="qualities" opacity="%.3f">%s</g>' % (a, "".join(body))
+
+
+def toolkit_svg(f):
+    W, H = L.W, L.H
+    out = ['<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" '
+           'viewBox="0 0 %d %d">' % (W, H, W, H),
+           '<rect width="%d" height="%d" fill="%s"/>' % (W, H, S.bg),
+           G.text(W / 2, TITLE_Y, TITLE, 24, anchor="middle", weight="bold"),
+           _tray(f),
+           _qualities(f),
+           '<g class="ecosystem" transform="translate(%.2f,%.2f) scale(%.4f)">'
+           % (ECO_X, ECO_Y, ECO_S)]
+    out += _sections(f)
+    out += _pieces(f)
+    out.append("</g>")
+    out.append("</svg>")
+    return "\n".join(out)

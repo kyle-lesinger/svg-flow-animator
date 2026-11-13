@@ -137,7 +137,10 @@ picture with its own timeline, plays once, and ends on its finished picture.
 
 `intro` opens the story: STAC alone on an empty canvas, then a benefits panel
 either side of it (open-source community, then NASA), each highlighted while its
-points arrive, one every 5 seconds. It is listed by hand, first, ahead of the
+points arrive, one every 5 seconds. STAC is the focal point, so it pulses
+(glow and a 4% swell, once a second) while it is alone and again once both
+panels are up; the closing hold is a whole number of pulses, so the frame left
+on screen catches it at rest. It is listed by hand, first, ahead of the
 derived sections.
 
 It breaks two rules above on purpose. It does not show the whole canvas,
@@ -195,6 +198,74 @@ every shape into the one circle -- cloud-optimized -- and only it does: the
 tests check no dot changes shape on the manual path, and none keeps its shape
 past ingest. The queue is the bottleneck's own (`funnel.py`), and HDF4 is a
 cross because a hexagon, at dot size, read as the cloud-optimized circle.
+
+`uses` closes the slides: what the data is for -- a web dashboard, an analysis
+tool, a news or event article, a lesson -- before STAC and after. Before, there
+is no catalog: each app is a silo, with its own copy of the data, its own level
+lane and its own schedule, and on each lane a person stands in the way doing
+the hand-off by hand (download, convert, screenshot, re-upload). A person takes
+longer per granule than the gap between granules, so each line grows while the
+cards say "days behind". Then one system takes over -- STAC, badged as the
+single source of truth, and one editor (TinaCMS) for every app: the copies
+glide together into it, the lanes bend into one fan out of it, the backlog is
+released in order, and four granules leave STAC for every card, a couple per
+route at a time. The slide ends once the fourth has landed everywhere (`TOTAL`
+is derived from that arrival, ~26 s), so the frame left on screen has every
+app holding the same data and nothing in flight. The process is simplified, not automated, and the slide says so: the four
+people on the lanes give way to one person at the one editor, the routes read
+"simplified · via STAC", the cards "same data · up to date", and a test keeps
+"automat..." off its final frame.
+
+A granule's place is the distance it still has to go to its card. Lane and fan
+both run level for the last stretch, where the people and their lines are, so a
+line stays put while its route bends from lane to fan around it. Old-world and
+new-world words fade in sequence, never together, and the dots are checked
+against the words drawn in each frame -- the one system's labels sit across the
+old lanes, and only appear once they are gone. Its cards carry page
+screenshots, so it is encoded like the journey (256 colours, full).
+
+`infra` is the whole ecosystem with the point of it brought forward: the
+reusable cyberinfrastructure that makes a fast response possible -- Ingest UI,
+Airflow, STAC, JupyterHub, TinaCMS, MyST Docs, Grafana, GitHub. It draws no
+data path at all (no flows, packets, links or "Push data"):
+`context_boxes(links=False)` and `integration_static(paths=False)` leave them
+out, and every other slide's defaults are unchanged. The picture is drawn
+whole, a wash recedes it, and the eight are drawn again above the wash, one per
+beat, each named in the line under the title; the blocks' headings are drawn
+above the wash throughout, since they are how a reader finds their way. Pieces,
+frames and headings are drawn by the same helpers the diagram itself uses
+(`ingest_ui`, `processing_hub`, `processing_github`, `tina_node`,
+`community_item`, `stac_static`, `airflow_static`, `block_box`,
+`block_title`), so each copy lands on its original pixel for pixel -- a test
+checks the markup is identical, and the refactor left every other frame
+byte-identical. It ends on all eight under "Interoperable · Cloud-optimized ·
+Cost-effective".
+
+Neither slide draws Community's "no automated data path" note
+(`block_title(..., note=False)`, `community_block(note=False)`); the main
+diagram still does.
+
+`toolkit` tells the same thing as a build-up. The eight sit in a tray across
+the top; the ecosystem, drawn at `ECO_S` (~0.82) below it, is assembled one
+step at a time -- Data Integration + Funded Projects & Partners, STAC, Federal
+Partners + Data Processing, Portal Content, Community & Engagement -- each
+step's sections fading in at full strength and its pieces moving down out of
+the tray into place. A piece is drawn by the same markup in the tray, in
+flight and in place; only a transform moves and scales it, and in place it has
+none, so it lands exactly where the diagram draws it (a test checks the
+untransformed markup). GitHub is used twice: its first trip is a copy, and it
+leaves the tray only on its last. At the end the tray gives way to the three
+qualities. Sections are drawn one at a time by `egis_block`,
+`processing_block(pieces=False)`, `portal_block`, `community_block(skip=...)`
+and `integration_static(pieces=False)`; `context_boxes` is now composed of the
+block functions, and every frame of the main diagram is byte-identical to
+before.
+
+Its PNG is NOT its last frame: `./build.sh --poster=infra` renders
+`infra.poster_svg()` (via `slide_poster()`), which takes away everything that
+is not reusable infrastructure -- only the six blocks' frames and headings and
+the eight pieces, each where it sits in the ecosystem. Other slides' posters
+are their last frame.
 
 **No slide says "COG".** The work uses many cloud-optimized formats; naming one
 says every file becomes that one. The slides say "cloud-optimized", and

@@ -313,6 +313,29 @@ mostly-static diagram that spends the colour budget where it shows.
 - [docs/DECISIONS.md](docs/DECISIONS.md) — why things are the way they are, including measurements that contradicted the hypothesis
 - [CLAUDE.md](CLAUDE.md) / [.clinerules.md](.clinerules.md) — guidance for AI assistants
 
+## AI disclosure
+
+The code in this repository was written with an AI coding assistant
+(Claude Code, Anthropic) working from the author's direction. The author
+decided what to build, what each diagram shows and says, accepted or rejected
+every change, and verified the result; the assistant wrote most of the lines.
+The design notes, the gotchas catalogue and the decisions log record human
+judgement, measured and argued, not generated prose.
+
+No image in this repository was produced by a generative image model. Every
+frame is a deterministic render of hand-described geometry: run the code twice
+and you get the same bytes.
+
+Under NASA's definitions (NID 1383.155, *Use of AI-Generated and AI-Assisted
+Media*) this is **AI-assisted** work: the human keeps primary creative
+direction and editorial control and the AI is the tool. What that means for
+the GIFs this builds for NASA, and how to apply NASA's "Generated Content"
+label if a reviewer classifies them otherwise, is in
+[examples/disasters_ingest/README.md](examples/disasters_ingest/README.md#labeling-the-output).
+
+Commit history carries no AI co-author trailers by convention; this section is
+the disclosure.
+
 ## License
 
 MIT

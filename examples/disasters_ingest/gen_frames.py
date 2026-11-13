@@ -219,6 +219,9 @@ INTRO = "intro"
 JOURNEY = "journey"
 BOTTLENECK = "bottleneck"
 STORY = "story"
+USES = "uses"
+INFRA = "infra"
+TOOLKIT = "toolkit"
 
 
 def slides():
@@ -231,13 +234,34 @@ def slides():
     """
     import bottleneck
     import journey
+    import infra
     import story
+    import toolkit
+    import uses
     return {INTRO: ("Why STAC", intro_svg, INTRO_TOTAL),
             JOURNEY: ("Swath to every tool", journey.journey_svg,
                       journey.TOTAL),
             BOTTLENECK: ("The bottleneck, solved", bottleneck.bottleneck_svg,
                          bottleneck.TOTAL),
-            STORY: ("Observe to decide", story.story_svg, story.TOTAL)}
+            STORY: ("Observe to decide", story.story_svg, story.TOTAL),
+            USES: ("Data to every audience", uses.uses_svg, uses.TOTAL),
+            INFRA: ("Reusable cyberinfrastructure", infra.infra_svg,
+                    infra.TOTAL),
+            TOOLKIT: ("The toolkit, assembled", toolkit.toolkit_svg,
+                      toolkit.TOTAL)}
+
+
+def slide_poster(key):
+    """
+    A slide's still: its own poster if it draws one (the infrastructure slide
+    takes everything but the infrastructure away for its PNG), else its last
+    frame -- what a slide that plays once leaves on screen.
+    """
+    import infra
+    if key == INFRA:
+        return infra.poster_svg()
+    _label, render, total = slides()[key]
+    return render(total - 1)
 
 
 def sections():
@@ -296,9 +320,10 @@ def section_gif(name=None):
     shares the GIF's single palette with five data colour ramps. At 128
     colours weighted to what CHANGES, the desert snapped to the swaths'
     oranges and read as fire; 256 colours over the whole picture fixes it,
-    and on these frames is smaller too.
+    and on these frames is smaller too. The uses slide carries four page
+    screenshots and a map, so it is encoded the same way.
     """
-    if name in (JOURNEY, STORY):
+    if name in (JOURNEY, STORY, USES, INFRA, TOOLKIT):
         return section_loop(name), 256, "full"
     return section_loop(name), 128, "diff"
 
@@ -760,16 +785,38 @@ def context_boxes(bright=frozenset(CONTENT_GROUPS), tina_dy=0.0):
 
     Each is drawn at full strength or at context weight depending on whether
     the section being told is about it -- so Earthdata GIS is bright in its own
-    chapter and muted in everyone else's.
+    chapter and muted in everyone else's. Each block is its own function, so a
+    slide can draw them one at a time.
     """
-    out = []
+    out = [egis_block(_op("egis", bright)),
+           processing_block(_op("processing", bright)),
+           portal_block(_op("portal", bright)),
+           community_block(_op("community", bright))]
 
-    # ---- Federal Partners (above STAC)
-    o = _op("egis", bright)
-    x, y, w, h = L.BOX_EGIS
-    out.append(box(x, y, w, h, L.FILL_EGIS, opacity=o))
-    out.append(text(x + w / 2, y + 24, "Federal Partners", 15, anchor="middle",
-                    weight="bold", opacity=o))
+    # ---- TinaCMS, mirroring Airflow on the right of STAC
+    o = _op("portal", bright)
+    # Only the llama hops -- its label stays put. A caption bouncing with it
+    # would read as the whole node vibrating rather than the animal jumping.
+    out.append(tina_node(o, tina_dy))
+
+    # ---- static links from STAC out to its neighbours.
+    #
+    # For Earthdata GIS and Data Processing the leg drawn here is the MINOR
+    # return (STAC -> block): thin and faint on purpose, because the main leg
+    # runs the other way and is animated at full weight in frame_svg(). Portal
+    # Content has no return leg at all -- TinaCMS is not two-way yet -- so its
+    # single link keeps the heavier stroke.
+    for pts, width in ((L.stac_to_egis(), STAC_MINOR_W),
+                       (L.stac_to_processing(), STAC_MINOR_W),
+                       (L.stac_to_portal(), STAC_MAIN_W)):
+        out.append(link(pts, color=L.FLOW, width=width, opacity=o,
+                        key=("stacctx", pts[0], pts[-1])))
+    return "\n".join(out)
+
+
+def egis_block(o=1.0):
+    """Federal Partners (above STAC)."""
+    out = [block_box("egis", o), block_title("egis", o)]
     # Marks left to right. They are pure sources: the arrows below all leave
     # them, and nothing from STAC terminates on one. Earthdata GIS took the
     # middle slot from NOAA, so the EGIS globe appears twice on the canvas --
@@ -799,33 +846,31 @@ def context_boxes(bright=frozenset(CONTENT_GROUPS), tina_dy=0.0):
     for i in range(3):
         out.append(link(L.egis_fanout(i), color=S.edge, width=1.8, opacity=o,
                         key=("egis.out", i)))
+    return "\n".join(out)
 
-    # ---- Data Processing (below STAC)
-    o = _op("processing", bright)
+
+def processing_block(o=1.0, pieces=True):
+    """Data Processing (below STAC). `pieces=False` leaves out its reusable
+    infrastructure -- the hub and GitHub -- for a slide that brings them in."""
     x, y, w, h = L.BOX_PROCESSING
-    out.append(box(x, y, w, h, L.FILL_PROCESSING, opacity=o))
-    out.append(text(x + w / 2, y + 24, "Data Processing", 14, anchor="middle",
-                    weight="bold", opacity=o))
+    out = [block_box("processing", o), block_title("processing", o)]
     # Jupyter and DPS side by side as ONE lockup, in the block's main slot:
     # the hub and the system that runs its algorithms are one capability, and
     # the caption below names both.
-    out.append(jupyter_dps(L.DPS_C[0], L.DPS_C[1], L.DPS_SIZE, opacity=o))
-    for j, line in enumerate(("Disasters Hub /", "Data Processing System /",
-                              "User Notebooks")):
-        out.append(text(x + w / 2, y + 112 + j * 15, line, 11.5, anchor="middle", opacity=o))
-    out.append(img(L.A_GITHUB, x + 26, y + 156, 40, 40, opacity=o))
+    if pieces:
+        out.append(processing_hub(o))
+        out.append(processing_github(o))
     out.append(img(L.A_NOTEBOOK, x + w - 62, y + 157, 32, 38, opacity=o))
+    return "\n".join(out)
 
 
-    # ---- Portal Content (right, mirrors Data Integration)
-    o = _op("portal", bright)
-    x, y, w, h = L.BOX_PORTAL
-    out.append(box(x, y, w, h, L.FILL_PORTAL, opacity=o))
+def portal_block(o=1.0):
+    """Portal Content (right, mirrors Data Integration)."""
+    out = [block_box("portal", o)]
     # Right-justified, mirroring Data Integration's left-justified title: these
     # two are the outer halves of the diagram, so each title sits against its
     # own outer edge rather than both being centred inward.
-    out.append(text(x + w - 22, y + 28, "Portal Content", 17, anchor="end",
-                    weight="bold", opacity=o))
+    out.append(block_title("portal", o))
     for i, a in enumerate((L.A_SHOT_HOME, L.A_SHOT_STORY,
                            L.A_SHOT_VIZ, L.A_SHOT_TRAINING)):
         px, py, pw, ph = L.portal_shot(i)
@@ -843,51 +888,129 @@ def context_boxes(bright=frozenset(CONTENT_GROUPS), tina_dy=0.0):
         ly = py - 11 if i < 2 else py + ph + 23
         out.append(text(px + pw / 2, ly, L.PORTAL_SHOTS[i], 11.5,
                         anchor="middle", opacity=o))
-
-    # ---- Community & Engagement (bottom-right, mirrors Funded Projects)
-    o = _op("community", bright)
-    x, y, w, h = L.BOX_COMMUNITY
-    out.append(box(x, y, w, h, L.FILL_COMMUNITY, opacity=o, dash="7 5"))
-    out.append(text(x + 18, y + 28, "Community &", 14, weight="bold", opacity=o))
-    out.append(text(x + 18, y + 46, "Engagement", 14, weight="bold", opacity=o))
-    out.append(text(x + 18, y + 64, "no automated data path", 9.5, opacity=o))
-    for i, (a, lab) in enumerate(COMMUNITY_ITEMS):
-        cx, cy = community_item_c(i)
-        out.append(img(a, cx - 17, cy - 17, 34, 34, opacity=o))
-        out.append(text(cx, y + 62, lab, 9.5, anchor="middle", opacity=o))
-
-    # ---- TinaCMS, mirroring Airflow on the right of STAC
-    o = _op("portal", bright)
-    # Only the llama hops -- its label stays put. A caption bouncing with it
-    # would read as the whole node vibrating rather than the animal jumping.
-    out.append(img(L.A_TINA, L.TINA_C[0] - L.TINA_SIZE / 2,
-                   L.TINA_C[1] - L.TINA_SIZE / 2 + tina_dy,
-                   L.TINA_SIZE, L.TINA_SIZE, opacity=o))
-    out.append(text(L.LABEL_TINA[0], L.LABEL_TINA[1], "TinaCMS", 11,
-                    anchor="middle", opacity=o))
-
-    # ---- static links from STAC out to its neighbours.
-    #
-    # For Earthdata GIS and Data Processing the leg drawn here is the MINOR
-    # return (STAC -> block): thin and faint on purpose, because the main leg
-    # runs the other way and is animated at full weight in frame_svg(). Portal
-    # Content has no return leg at all -- TinaCMS is not two-way yet -- so its
-    # single link keeps the heavier stroke.
-    for pts, width in ((L.stac_to_egis(), STAC_MINOR_W),
-                       (L.stac_to_processing(), STAC_MINOR_W),
-                       (L.stac_to_portal(), STAC_MAIN_W)):
-        out.append(link(pts, color=L.FLOW, width=width, opacity=o,
-                        key=("stacctx", pts[0], pts[-1])))
     return "\n".join(out)
 
 
-def integration_static():
-    """The Data Integration container, its seven sources, and the Ingest UI."""
+def community_block(o=1.0, skip=(), note=True):
+    """Community & Engagement (bottom-right, mirrors Funded Projects).
+    `skip` leaves out channels by name; `note=False` drops the line under the
+    heading."""
+    out = [block_box("community", o), block_title("community", o, note=note)]
+    for i, (_a, lab) in enumerate(COMMUNITY_ITEMS):
+        if lab not in skip:
+            out.append(community_item(i, o))
+    return "\n".join(out)
+
+
+BLOCKS = ("integration", "funded", "egis", "processing", "portal", "community")
+_BLOCK = {"integration": ("BOX_INTEGRATION", "FILL_INTEGRATION"),
+          "funded": ("BOX_FUNDED", "FILL_FUNDED"),
+          "egis": ("BOX_EGIS", "FILL_EGIS"),
+          "processing": ("BOX_PROCESSING", "FILL_PROCESSING"),
+          "portal": ("BOX_PORTAL", "FILL_PORTAL"),
+          "community": ("BOX_COMMUNITY", "FILL_COMMUNITY")}
+
+
+def block_box(block, o=1.0):
+    """The frame of one block. Community is dashed: nothing flows into it."""
+    rect, fill = _BLOCK[block]
+    x, y, w, h = getattr(L, rect)
+    if block == "community":
+        return box(x, y, w, h, L.FILL_COMMUNITY, opacity=o, dash="7 5")
+    return box(x, y, w, h, getattr(L, fill), opacity=o)
+
+
+def block_title(block, o=1.0, note=True):
+    """
+    The heading of one block, drawn by ONE function: the diagram draws its
+    headings through this, and the infrastructure slide draws them again above
+    its wash -- the headings are how a reader finds their way around, so they
+    never recede with the rest. `note=False` drops Community's small line
+    under its heading.
+    """
+    if block == "integration":
+        return text(L.LABEL_TITLE_DI[0], L.LABEL_TITLE_DI[1],
+                    "Data Integration", 18, weight="bold")
+    if block == "funded":
+        fx, fy = L.LABEL_TITLE_FUNDED
+        return (text(fx, fy, "Funded Projects", 15, weight="bold") + "\n"
+                + text(fx, fy + 20, "& Partners", 15, weight="bold"))
+    if block == "egis":
+        x, y, w, _h = L.BOX_EGIS
+        return text(x + w / 2, y + 24, "Federal Partners", 15, anchor="middle",
+                    weight="bold", opacity=o)
+    if block == "processing":
+        x, y, w, _h = L.BOX_PROCESSING
+        return text(x + w / 2, y + 24, "Data Processing", 14, anchor="middle",
+                    weight="bold", opacity=o)
+    if block == "portal":
+        x, y, w, _h = L.BOX_PORTAL
+        return text(x + w - 22, y + 28, "Portal Content", 17, anchor="end",
+                    weight="bold", opacity=o)
+    if block == "community":
+        x, y, _w, _h = L.BOX_COMMUNITY
+        lines = [text(x + 18, y + 28, "Community &", 14, weight="bold", opacity=o),
+                 text(x + 18, y + 46, "Engagement", 14, weight="bold", opacity=o)]
+        if note:
+            lines.append(text(x + 18, y + 64, "no automated data path", 9.5,
+                              opacity=o))
+        return "\n".join(lines)
+    raise KeyError(block)
+
+
+# The pieces of reusable infrastructure, each drawn by ONE function: the
+# diagram draws them through these, and the infrastructure slide draws them
+# again on top of its wash -- so the two can never disagree about where one is.
+def processing_hub(o=1.0):
+    """JupyterHub and DPS, as one lockup, with the lines naming them."""
+    x, y, w, _h = L.BOX_PROCESSING
+    out = [jupyter_dps(L.DPS_C[0], L.DPS_C[1], L.DPS_SIZE, opacity=o)]
+    for j, line in enumerate(("Disasters Hub /", "Data Processing System /",
+                              "User Notebooks")):
+        out.append(text(x + w / 2, y + 112 + j * 15, line, 11.5, anchor="middle", opacity=o))
+    return "\n".join(out)
+
+
+def processing_github(o=1.0):
+    x, y, _w, _h = L.BOX_PROCESSING
+    return img(L.A_GITHUB, x + 26, y + 156, 40, 40, opacity=o)
+
+
+def community_item(i, o=1.0):
+    """Channel `i` of Community & Engagement: its mark and its name."""
+    a, lab = COMMUNITY_ITEMS[i]
+    cx, cy = community_item_c(i)
+    return (img(a, cx - 17, cy - 17, 34, 34, opacity=o) + "\n"
+            + text(cx, L.BOX_COMMUNITY[1] + 62, lab, 9.5, anchor="middle", opacity=o))
+
+
+def tina_node(o=1.0, dy=0.0):
+    """The TinaCMS llama and its label. Only the llama hops -- a caption
+    bouncing with it would read as the whole node vibrating."""
+    return (img(L.A_TINA, L.TINA_C[0] - L.TINA_SIZE / 2,
+                L.TINA_C[1] - L.TINA_SIZE / 2 + dy,
+                L.TINA_SIZE, L.TINA_SIZE, opacity=o) + "\n"
+            + text(L.LABEL_TINA[0], L.LABEL_TINA[1], "TinaCMS", 11,
+                   anchor="middle", opacity=o))
+
+
+def ingest_ui():
+    bx, by, bw, bh = L.BOX_INGEST
+    return (S.box(bx, by, bw, bh, "#0d1b2a", stroke="#0d1b2a", rx=5, sw=1.5,
+                  key=("ingest",)) + "\n"
+            + img(L.A_INGEST, bx + 6, by + 5, bw - 12, bh - 10))
+
+
+def integration_static(paths=True, pieces=True):
+    """The Data Integration container, its seven sources, and the Ingest UI.
+    `paths=False` leaves out what only annotates a data path -- the hub the
+    spokes meet at, and the "Push data" label on the riser -- for a picture
+    that draws no paths. `pieces=False` leaves out the Ingest UI, for a slide
+    that brings it in."""
     out = []
     x, y, w, h = L.BOX_INTEGRATION
-    out.append(box(x, y, w, h, L.FILL_INTEGRATION))
-    out.append(text(L.LABEL_TITLE_DI[0], L.LABEL_TITLE_DI[1],
-                    "Data Integration", 18, weight="bold"))
+    out.append(block_box("integration"))
+    out.append(block_title("integration"))
 
     for i, src in enumerate(L.SOURCES):
         cx, cy = src["c"]
@@ -906,18 +1029,18 @@ def integration_static():
                     "Disasters AWS Bucket", 12.5))
 
     # hub dot + the short connector into the ingest box
-    out.append(S.circle(L.HUB[0], L.HUB[1], 5, fill=S.edge, key=("hub",)))
+    if paths:
+        out.append(S.circle(L.HUB[0], L.HUB[1], 5, fill=S.edge, key=("hub",)))
 
-    bx, by, bw, bh = L.BOX_INGEST
-    out.append(S.box(bx, by, bw, bh, "#0d1b2a", stroke="#0d1b2a", rx=5, sw=1.5,
-                     key=("ingest",)))
-    out.append(img(L.A_INGEST, bx + 6, by + 5, bw - 12, bh - 10))
+    if pieces:
+        out.append(ingest_ui())
 
     # the "+" the original diagram puts between the Ingest UI and Airflow
     out.append(text(L.PLUS_C[0], L.PLUS_C[1] + 9, "+", 26, anchor="middle"))
 
     # "Push data" riser annotation
-    out.append(text(L.LABEL_PUSH[0], L.LABEL_PUSH[1], "Push data", 11))
+    if paths:
+        out.append(text(L.LABEL_PUSH[0], L.LABEL_PUSH[1], "Push data", 11))
     return "\n".join(out)
 
 
@@ -951,11 +1074,8 @@ def di_stac_link():
 def funded_static():
     x, y, w, h = L.BOX_FUNDED
     return "\n".join([
-        box(x, y, w, h, L.FILL_FUNDED),
-        text(L.LABEL_TITLE_FUNDED[0], L.LABEL_TITLE_FUNDED[1],
-             "Funded Projects", 15, weight="bold"),
-        text(L.LABEL_TITLE_FUNDED[0], L.LABEL_TITLE_FUNDED[1] + 20,
-             "& Partners", 15, weight="bold"),
+        block_box("funded"),
+        block_title("funded"),
         # Four equal 60x44 slots on a shared centre line, every one captioned.
         # None of the four is a product with a mark of its own -- they are NASA
         # programmes -- so each takes an agency logo and is told apart by its
@@ -1489,7 +1609,9 @@ def frame_svg(f, view=None, scope=None, captions=True):
 #
 # (side, heading, (point, ...)). Edit the wording here; the panels wrap and
 # space themselves, and tests/test_disasters_intro.py checks it still fits.
-# Keep a point to one line -- a slide with paragraphs on it is not read.
+# Keep a point short -- a slide with paragraphs on it is not read. At this
+# size each point wraps to two balanced lines; that is the price of text big
+# enough to read from the back of the room.
 INTRO_PANELS = (
     ("left", "Open-source geospatial community", (
         "One open standard for any geospatial data",
@@ -1498,7 +1620,7 @@ INTRO_PANELS = (
     )),
     ("right", "Across NASA", (
         "NASA Earthdata searchable through CMR-STAC",
-        "Used by VEDA, the U.S. GHG Center and MAAP",
+        "Used by VEDA, MAAP and the U.S. GHG Center",
         "Cloud-native: stream cloud-optimized formats",
     )),
 )
@@ -1507,13 +1629,21 @@ INTRO_FILL = "#f3fdf4"          # a whisper of STAC's own green
 INTRO_STAC_ALONE = 30           # STAC by itself before the first panel
 INTRO_BULLET_STEP = 5 * FPS     # every point arrives 5 seconds after the last
 INTRO_HOLD = 45                 # both panels up, nothing new arriving
+# STAC is the focal point: it pulses while it is alone and again once both
+# panels are up. The hold is a whole number of pulses, so the frame left on
+# screen catches STAC at rest -- its own size, still lit.
+INTRO_PULSE = 15                # frames per pulse: once a second
+INTRO_PULSE_GROW = 0.04         # how much larger STAC is at a pulse's peak
 INTRO_PAD = 26                  # panel inner padding
-INTRO_INDENT = 30               # text clears the tick by this much
-# Larger than the diagram's labels: these panels ARE the narration here, and
-# the GIF is shown at 0.8 scale.
-INTRO_HEAD_SIZE = 18
-INTRO_POINT = (16, 26)          # (size, line height if a point wraps)
-INTRO_BULLET_GAP = 18
+INTRO_INDENT = 40               # text clears the tick by this much
+# Far larger than the diagram's labels: these panels ARE the narration here,
+# and the GIF sits inside a slide at well under its own size.
+INTRO_HEAD_SIZE = 26
+INTRO_POINT = (24, 36)          # (size, line height when a point wraps)
+INTRO_BULLET_GAP = 24
+INTRO_HEAD_Y = 54               # heading baseline, below the panel's top
+INTRO_FIRST_Y = 118             # first point's baseline, below the panel's top
+INTRO_TICK = 1.4                # the check mark, scaled with the text
 
 
 def _intro_window(f, start, end):
@@ -1525,6 +1655,24 @@ def _intro_window(f, start, end):
     if f <= end:
         return 1.0
     return 1.0 - (f - end) / float(FADE)
+
+
+def _intro_pulse(f, start):
+    """0 -> 1 -> 0 once every INTRO_PULSE frames, counted from `start`."""
+    return 0.5 - 0.5 * math.cos(2 * math.pi * (f - start) / INTRO_PULSE)
+
+
+def intro_stac_pulse(f):
+    """(glow strength, scale) of STAC at frame f -- a pulse while it is alone
+    and again at the close, nothing while the panels are being told."""
+    alone = _intro_window(f, 0, INTRO_STAC_ALONE - FADE)
+    close_at = INTRO_SPANS[-1][1]
+    closing = _intro_window(f, close_at, INTRO_HOLD_END)
+    lit = max(alone, closing)
+    if lit <= 0:
+        return 0.0, 1.0
+    beat = _intro_pulse(f, 0 if alone >= closing else close_at)
+    return lit * (0.45 + 0.55 * beat), 1.0 + INTRO_PULSE_GROW * lit * beat
 
 
 def _intro_timeline():
@@ -1583,9 +1731,9 @@ def intro_layout(side, heading, points):
     x, y, w, _h = L.intro_panel(side)
     inner = w - 2 * INTRO_PAD - INTRO_INDENT
     tx = x + INTRO_PAD + INTRO_INDENT
-    lines = [(-1, x + INTRO_PAD, y + 42, heading, INTRO_HEAD_SIZE, "bold",
-              False)]
-    by = y + 92
+    lines = [(-1, x + INTRO_PAD, y + INTRO_HEAD_Y, heading, INTRO_HEAD_SIZE,
+              "bold", False)]
+    by = y + INTRO_FIRST_Y
     size, lh = INTRO_POINT
     for j, point in enumerate(points):
         for k, line in enumerate(_balanced_wrap(point, _wrap_chars(inner, size))):
@@ -1595,10 +1743,11 @@ def intro_layout(side, heading, points):
     return lines
 
 
-def _tick(x, y, key):
-    """A check mark, through S so it is hand-drawn in sketch mode."""
-    return S.poly([(x, y - 6), (x + 6, y), (x + 17, y - 14)], L.FLOW, sw=3,
-                  key=key)
+def _tick(x, y, key, k=1.0):
+    """A check mark, `k` times its base size, through S so it is hand-drawn in
+    sketch mode."""
+    return S.poly([(x, y - 6 * k), (x + 6 * k, y), (x + 17 * k, y - 14 * k)],
+                  L.FLOW, sw=3 * k, key=key)
 
 
 def intro_svg(f):
@@ -1608,12 +1757,16 @@ def intro_svg(f):
         f'height="{L.H}" viewBox="0 0 {L.W} {L.H}">',
         f'<rect width="{L.W}" height="{L.H}" fill="{S.bg}"/>',
     ]
-    # STAC is lit while it is alone, and again once both panels are up, so the
+    # STAC pulses while it is alone, and again once both panels are up, so the
     # last thing the reader is pointed at is the catalog the rest is built on.
-    stac_lit = max(_intro_window(f, 0, INTRO_STAC_ALONE - FADE),
-                   _intro_window(f, INTRO_SPANS[-1][1], INTRO_HOLD_END))
-    parts.append(halo(*L.BOX_STAC, strength=stac_lit))
-    parts.append(stac_static())
+    # Scaled by a transform about its centre, never by moving its geometry:
+    # the sketch is seeded on that geometry, and would boil.
+    glow, scale = intro_stac_pulse(f)
+    sx, sy, sw, sh = L.BOX_STAC
+    cx, cy = sx + sw / 2, sy + sh / 2
+    parts.append(f'<g class="stac" transform="translate({cx:.1f},{cy:.1f}) '
+                 f'scale({scale:.4f}) translate({-cx:.1f},{-cy:.1f})">'
+                 + halo(*L.BOX_STAC, strength=glow) + stac_static() + '</g>')
 
     for (side, heading, items), (start, end, bullets) in zip(INTRO_PANELS,
                                                              INTRO_SPANS):
@@ -1632,7 +1785,8 @@ def intro_svg(f):
             out.append(text(lx, ly, s, size, weight=weight, opacity=a))
             if ticked:
                 out.append(f'<g opacity="{a:.3f}">'
-                           + _tick(x + INTRO_PAD, ly - 2, ("intro.tick", side, j))
+                           + _tick(x + INTRO_PAD, ly - 3, ("intro.tick", side, j),
+                                   INTRO_TICK)
                            + '</g>')
         parts.append(f'<g opacity="{shown:.3f}">' + "".join(out) + '</g>')
 
@@ -1737,6 +1891,21 @@ def main():
     gif_of = _arg(argv, "--section-gif")
     if gif_of is not None:
         print("%d %d %s" % section_gif(gif_of or None))
+        return
+
+    # A still of a slide's finished picture: --poster=<slide> renders its last
+    # frame, which is what a slide that plays once leaves on screen.
+    poster_of = _arg(argv, "--poster")
+    if poster_of:
+        if poster_of not in slides():
+            raise KeyError("no such slide: %s (have: %s)"
+                           % (poster_of, ", ".join(slides())))
+        os.makedirs(L.FRAMES, exist_ok=True)
+        stage_assets()
+        out = os.path.join(L.FRAMES, "poster.svg")
+        with open(out, "w", encoding="utf-8") as fh:
+            fh.write(slide_poster(poster_of))
+        print(out)
         return
 
     # A single still of the whole ecosystem: everything settled, nothing

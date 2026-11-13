@@ -9,6 +9,8 @@
 #   ./build.sh --section=egis      one section       -> sections/egis.gif
 #   ./build.sh --all-sections      every section     -> sections/*.gif
 #   ./build.sh --list-sections     what is buildable
+#   ./build.sh --poster            the whole ecosystem, still -> sections/ecosystem.png
+#   ./build.sh --poster=infra      a slide's last frame       -> sections/infra.png
 #
 # A section is one labelled box, cropped to the output's aspect ratio and
 # rendered from the SAME timeline -- so it always agrees with the full GIF.
@@ -33,11 +35,13 @@ STYLE="${FLOWGIF_STYLE:-$DEFAULT_STYLE}"
 SECTION=""
 ALL_SECTIONS=0
 POSTER=0
+POSTER_OF=""
 POSITIONAL=""
 for arg in "$@"; do
   case "$arg" in
     --list-sections) python3 "$WD/gen_frames.py" --list-sections; exit 0 ;;
     --poster)        POSTER=1 ;;
+    --poster=*)      POSTER=1; POSTER_OF="${arg#--poster=}" ;;
     --all-sections)  ALL_SECTIONS=1 ;;
     --section=*)     SECTION="${arg#--section=}" ;;
     -h|--help)       sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
@@ -137,10 +141,16 @@ build_one() {
 
 # The poster is a STILL, so it skips frames, ffmpeg and the GIF entirely.
 if [ "$POSTER" = "1" ]; then
-  SVG=$(python3 "$WD/gen_frames.py" --style="$STYLE" --poster)
+  # --poster is the whole ecosystem; --poster=<slide> is that slide's last
+  # frame, e.g. --poster=infra -> sections/infra.png
+  if [ -n "$POSTER_OF" ]; then
+    SVG=$(python3 "$WD/gen_frames.py" --style="$STYLE" "--poster=$POSTER_OF")
+  else
+    SVG=$(python3 "$WD/gen_frames.py" --style="$STYLE" --poster)
+  fi
   SUFFIX=""
   [ "$STYLE" = "$DEFAULT_STYLE" ] || SUFFIX="-$STYLE"
-  OUT_PNG="$WD/sections/ecosystem${SUFFIX}.png"
+  OUT_PNG="$WD/sections/${POSTER_OF:-ecosystem}${SUFFIX}.png"
   mkdir -p "$(dirname "$OUT_PNG")"
   rsvg-convert -w 3200 -h 1800 -b "$PAPER" -o "$OUT_PNG" "$SVG"
   rm -f "$SVG"

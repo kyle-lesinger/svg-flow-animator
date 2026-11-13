@@ -453,7 +453,7 @@ def portal_fan(i):
 # derived from STAC's box instead, so moving STAC in the editor carries them.
 INTRO_MARGIN = 40              # the canvas margin the diagram itself keeps
 INTRO_GAP = 40                 # air between STAC and each panel
-INTRO_PANEL_H = 216            # a heading and three one-line points
+INTRO_PANEL_H = 380            # a heading and three two-line points
 
 
 def intro_panel(side):
