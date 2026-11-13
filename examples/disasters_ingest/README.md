@@ -20,6 +20,7 @@ Needs `rsvg-convert` and `ffmpeg` on PATH. No Python packages.
     ./build.sh --section=bottleneck   # -> sections/bottleneck.gif, the bottleneck solved
     ./build.sh --section=story        # -> sections/story.gif, the two combined, 45 s
     ./build.sh --section=uses         # -> sections/uses.gif, data to every audience
+    ./build.sh --section=response     # -> sections/response.gif, the whole network, 15 s
     ./build.sh --section=infra        # -> sections/infra.gif, the reusable infrastructure
     ./build.sh --poster=infra         # -> sections/infra.png, the reusable pieces only
     ./build.sh --section=toolkit      # -> sections/toolkit.gif, the toolkit, assembled
@@ -173,6 +174,7 @@ prevents it.
     funnel.py         that queue, shared by the bottleneck and story slides
     story.py          globe + formats + bottleneck + automation, in 45 s
     uses.py           the uses slide: silos and hand-offs, then one system
+    response.py       the response slide: the whole network, end to end, in 15 s
     infra.py          the infrastructure slide: the eight reusable pieces, no paths
     toolkit.py        the toolkit slide: a tray of the eight, moved into place
     style.py          flat vs sketch drawing backends

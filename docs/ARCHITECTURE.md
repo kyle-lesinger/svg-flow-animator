@@ -224,6 +224,32 @@ against the words drawn in each frame -- the one system's labels sit across the
 old lanes, and only appear once they are gone. Its cards carry page
 screenshots, so it is encoded like the journey (256 colours, full).
 
+`response` is the whole network in one picture, end to end, in 15 seconds,
+with no caption: the story's globe and cast of satellites on the left, the
+solved pipeline across the middle (automated ingest with Airflow turning,
+cloud storage, STAC badged as the single source of truth), five destinations
+on the right -- the uses slide's four pages and a fifth, "Other tools & APIs",
+whose panel reads "STAC API · open standard · pull, don't copy" and whose
+status line says interoperable -- and beside them the people: a "Disasters
+community" column naming decision makers, emergency managers, responders and
+partners, closing on "act in hours, not weeks". The routes from STAC to each
+destination and from each destination to the people are there from the start.
+Nothing in it is a problem being solved. A granule leaves a pass's scan line
+every 12 frames -- a quarter of the story's rate, so each can be followed --
+rides the channel through the columns in its satellite's shape until automated
+ingest and as a circle from there, becomes one copy per destination at STAC's
+edge, lands on all five cards at once (each card's "N updates" counts up in
+step), and a pulse runs on from every card to the people, who light up once
+the first one arrives. `story.passes()`, `story.globe_scene()` and
+`story.scan_point_on()` take the globe and the slide length as arguments so
+this slide runs the same cast on its own globe (with `tags_inward`, so a
+satellite's name stays over the globe rather than under the ingest column);
+the destinations and the route maths are imported from `uses`. Emission stops
+at the last granule whose pulse can land before the closing hold, `TOTAL` is
+derived from that, and the cast runs a little past it, so the frame left on
+screen has the last pass just flown, every card holding the same count,
+every person lit and nothing in flight.
+
 `infra` is the whole ecosystem with the point of it brought forward: the
 reusable cyberinfrastructure that makes a fast response possible -- Ingest UI,
 Airflow, STAC, JupyterHub, TinaCMS, MyST Docs, Grafana, GitHub. It draws no

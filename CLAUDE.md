@@ -97,6 +97,7 @@ That build also emits one GIF per chapter, plus a still of the whole thing:
 ./build.sh --section=bottleneck  # -> sections/bottleneck.gif, the bottleneck solved
 ./build.sh --section=story     # -> sections/story.gif, the two combined, 45 s
 ./build.sh --section=uses      # -> sections/uses.gif, data to every audience
+./build.sh --section=response  # -> sections/response.gif, the whole network, 15 s
 ./build.sh --section=infra     # -> sections/infra.gif, the reusable infrastructure
 ./build.sh --section=toolkit   # -> sections/toolkit.gif, the toolkit, assembled
 ./build.sh --section=egis      # -> sections/egis.gif
@@ -137,6 +138,15 @@ its own picture on its own timeline, not on `_SPEC`, and each plays once:
   gathers the copies, the lanes bend into one fan out of it, the four
   hand-offs become one person at one editor, and every app shows the same
   data (`uses.py`, ~26 s). It says *simplified*, never automated.
+- `response`: the whole network, end to end, in 15 s, no caption -- the
+  story's globe and cast on the left, automated ingest, cloud storage and
+  STAC across the middle, five destinations on the right (the uses slide's
+  four pages and "Other tools & APIs": STAC API, pull don't copy,
+  interoperable), and beside them the people: Disasters community, decision
+  makers, emergency managers, responders, "act in hours, not weeks". A
+  granule keeps its satellite's shape until ingest, is a circle from there,
+  leaves STAC as one copy per destination and pulses on to the people. Only
+  a few granules per pass, so each can be followed (`response.py`).
 - `infra`: the whole ecosystem with no data paths, quietened (block headings
   stay crisp), and the eight pieces of reusable cyberinfrastructure (Ingest
   UI, Airflow, STAC, JupyterHub, TinaCMS, MyST Docs, Grafana, GitHub) brought
