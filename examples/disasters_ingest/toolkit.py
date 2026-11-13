@@ -16,7 +16,7 @@ tray only on its last -- reuse, shown rather than said. Once everything is in
 place the tray gives way to what it adds up to: interoperable,
 cloud-optimized, cost-effective -- and the connections draw themselves in.
 The sources' spokes first, faint, meeting at the hub the leg into STAC leaves
-from; then the legs INTO STAC, one after another, each arriving with a pulse
+from, and Funded Projects' push up into the Disasters bucket with them; then the legs INTO STAC, one after another, each arriving with a pulse
 as the catalogue's glow rises: everything converges on STAC. Then the legs
 out of it, and the Portal fan, faint, once the Portal leg has landed. Then
 one link from Community & Engagement's toolkit pieces -- MyST
@@ -166,6 +166,10 @@ def _links(f):
         _leg("spoke_%d" % i, L.spoke(i), FAINT_W, L.FLOW, CONVERGE_AT, LINK_T, f, out,
              opacity=FAINT, head=False)
     _leg("hub_to_ingest", L.hub_to_ingest(), FAINT_W, L.FLOW, HUB_AT, 8, f, out,
+         opacity=FAINT, head=False)
+    # ...and Funded Projects & Partners pushing up into the Disasters bucket,
+    # the diagram's own riser, faint like the spokes
+    _leg("push", L.push_path(), FAINT_W, L.FLOW, CONVERGE_AT, LINK_T, f, out,
          opacity=FAINT, head=False)
     for i, name in enumerate(INTO_STAC):
         pts = getattr(L, name)()

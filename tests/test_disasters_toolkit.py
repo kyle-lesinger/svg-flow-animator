@@ -113,7 +113,7 @@ for f in range(T.CONVERGE_AT, T.TOTAL, 2):
         engage_before_in.append(f)
 last_links = links(last)
 last_op = opacities(last)
-faint = [n for n in last_op if n.startswith(("spoke_", "portal_fan_", "hub_to"))]
+faint = [n for n in last_op if n.startswith(("spoke_", "portal_fan_", "hub_to", "push"))]
 stubs, trunk = T.engagement()
 sx, sy, sw, sh = L.BOX_STAC
 cx0, cy0, cw, ch = L.BOX_COMMUNITY
@@ -240,7 +240,8 @@ class ToolkitCase(unittest.TestCase):
         P = self.P
         self.assertEqual(P["in_before_spokes"], [], "a leg into STAC drew before the spokes met")
         self.assertEqual(P["fan_before_portal"], [], "the Portal fan drew before its leg landed")
-        self.assertEqual(len(P["faint"]), P["n_sources"] + 1 + 4)
+        self.assertEqual(len(P["faint"]), P["n_sources"] + 1 + 1 + 4, "spokes, hub, push, fan")
+        self.assertIn("push", P["faint"], "Funded Projects -> Disasters bucket")
         self.assertTrue(P["faint_ok"], "spokes and fan should be faint, not at full weight")
         for n in P["faint"]:
             self.assertEqual(P["last_links"].get(n), 1.0, "%s never finished drawing" % n)
