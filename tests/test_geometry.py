@@ -69,41 +69,28 @@ class TestEasing(unittest.TestCase):
 
 class TestRampWindow(unittest.TestCase):
     def test_ramp_is_exact_outside_its_span(self):
-        for ease in (G.smooth, None):
-            with self.subTest(ease=ease):
-                self.assertEqual(G.ramp(10, 10, 20, ease), 0.0)
-                self.assertEqual(G.ramp(-3, 10, 20, ease), 0.0)
-                self.assertEqual(G.ramp(20, 10, 20, ease), 1.0)
-                self.assertEqual(G.ramp(99, 10, 20, ease), 1.0)
+        self.assertEqual(G.ramp(10, 10, 20), 0.0)
+        self.assertEqual(G.ramp(-3, 10, 20), 0.0)
+        self.assertEqual(G.ramp(20, 10, 20), 1.0)
+        self.assertEqual(G.ramp(99, 10, 20), 1.0)
 
-    def test_ramp_eases_by_default_and_is_linear_without(self):
+    def test_ramp_is_smoothstep(self):
         self.assertAlmostEqual(G.ramp(15, 10, 20), 0.5)
         self.assertAlmostEqual(G.ramp(12, 10, 20), G.smooth(0.2))
-        self.assertAlmostEqual(G.ramp(12, 10, 20, ease=None), 0.2)
 
     def test_window_fades_in_holds_and_fades_out(self):
         self.assertEqual(G.window(9, 10, 30), 0.0)
         self.assertEqual(G.window(17, 10, 30), 1.0)
         self.assertEqual(G.window(30, 10, 30), 1.0)
         self.assertEqual(G.window(37, 10, 30), 0.0)
-        self.assertAlmostEqual(G.window(32, 10, 30, fade=4, ease=None), 0.5)
+        self.assertAlmostEqual(G.window(32, 10, 30, fade=4), 0.5)
 
-    def test_linear_window_is_the_callout_fade_it_replaced(self):
-        # Stage.alpha and the disasters bubbles delegate here: the frames they
-        # draw must not move by a byte.
-        def old(f, s, e, fade):
-            if f < s - fade or f > e + fade:
-                return 0.0
-            if f < s:
-                return (f - (s - fade)) / float(fade)
-            if f <= e:
-                return 1.0
-            return 1.0 - (f - e) / float(fade)
-        for s, e, fade in ((10, 40, 7), (0, 0, 4), (5, 6, 7)):
-            for f in range(-10, 60):
-                with self.subTest(s=s, e=e, fade=fade, f=f):
-                    self.assertEqual(G.window(f, s - fade, e, fade, ease=None),
-                                     old(f, s, e, fade))
+    def test_every_fade_is_eased(self):
+        # The project's one fade: slow at both ends, never a linear ramp.
+        self.assertAlmostEqual(G.window(11, 10, 40, fade=4), G.smooth(0.25))
+        self.assertLess(G.window(11, 10, 40, fade=4), 0.25)
+        self.assertAlmostEqual(G.window(41, 10, 40, fade=4), 1 - G.smooth(0.25))
+        self.assertGreater(G.window(41, 10, 40, fade=4), 0.75)
 
     def test_hash01_is_stable_and_in_unit_interval(self):
         vals = [G.hash01(i, salt) for i in range(200) for salt in (1, 2)]

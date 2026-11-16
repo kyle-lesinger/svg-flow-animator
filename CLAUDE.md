@@ -52,7 +52,7 @@ an example calling `editor.build(...)`.
 ## Run / verify
 
 ```bash
-python3 tests/run.py                                 # 613 tests, ~1 min
+python3 tests/run.py                                 # 614 tests, ~1 min
 python3 examples/minimal/demo.py                     # full pipeline, ~360 frames
 python3 examples/minimal/demo.py --style=sketch      # hand-drawn variant
 python3 -m compileall svg_flow_animator examples     # syntax
@@ -204,6 +204,8 @@ entry is a silent failure that shipped once. The three that recur:
   their object the first time they are nudged.
 - **A stage declares its subject, not its caption position.** Placement is
   searched for at render time.
+- **Every fade is eased.** Use `geometry.window()` / `ramp()` (smoothstep);
+  there is no linear fade, and new code should not add one.
 - **Assert on plausibility, not just exit status.** These failures produce valid
   files that are wrong; where a cheap invariant exists, check it.
 - **Point guards at an artefact that actually contains what they check.** A

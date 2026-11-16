@@ -20,7 +20,7 @@ except ImportError:
 
 from svg_flow_animator import timeline  # noqa: E402
 from svg_flow_animator.geometry import (place_near, rects_overlap,  # noqa: E402
-                                        wrap)
+                                        smooth, wrap)
 
 SVGNS = "{http://www.w3.org/2000/svg}"
 TEXT = ("One processor normalises whatever arrives, whatever shape it is in "
@@ -89,6 +89,11 @@ class TestStageAlpha(unittest.TestCase):
         self.assertEqual(rising, sorted(rising))
         falling = [self.S.alpha(f) for f in range(160, 168)]
         self.assertEqual(falling, sorted(falling, reverse=True))
+
+    def test_fades_are_eased_not_linear(self):
+        # start - fade = 93: one frame in, a linear fade would be at 1/7
+        self.assertAlmostEqual(self.S.alpha(94), smooth(1 / 7.0))
+        self.assertLess(self.S.alpha(94), 1 / 7.0)
 
     def test_stays_within_zero_and_one(self):
         for f in range(0, 300):

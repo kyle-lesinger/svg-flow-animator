@@ -26,19 +26,19 @@ def ease_in_out(t):
     return 0.5 - 0.5 * math.cos(math.pi * t)
 
 
-def ramp(f, a, b, ease=smooth):
-    """0 at or before frame a, 1 at or after b, eased between. ease=None is linear."""
+def ramp(f, a, b):
+    """0 at or before frame a, 1 at or after b, smoothstep-eased between."""
     if f <= a:
         return 0.0
     if f >= b:
         return 1.0
-    t = (f - a) / float(b - a)
-    return ease(t) if ease else t
+    return smooth((f - a) / float(b - a))
 
 
-def window(f, a, b, fade=7, ease=smooth):
-    """0..1: fades in over `fade` frames from a, holds, fades out over `fade` after b."""
-    return min(ramp(f, a, a + fade, ease), 1.0 - ramp(f, b, b + fade, ease))
+def window(f, a, b, fade=7):
+    """0..1: eases in over `fade` frames from a, holds, eases out over `fade`
+    after b. Every fade is this one; there is no linear fade."""
+    return min(ramp(f, a, a + fade), 1.0 - ramp(f, b, b + fade))
 
 
 def hash01(i, salt):
