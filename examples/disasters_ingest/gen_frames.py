@@ -1345,7 +1345,7 @@ def bubble(stage, alpha, view=None):
 def stage_alpha(stage, f):
     """Bubble opacity: fades in at stage start, out after its hold expires."""
     return window(f, stage["start"] - FADE,
-                  stage["start"] + stage["dur"] + stage["hold"], FADE, ease=None)
+                  stage["start"] + stage["dur"] + stage["hold"], FADE)
 
 
 def stage_progress(stage, f):
@@ -1679,12 +1679,6 @@ INTRO_FIRST_Y = 118             # first point's baseline, below the panel's top
 INTRO_TICK = 1.4                # the check mark, scaled with the text
 
 
-def _intro_window(f, start, end):
-    """0..1: fades in over FADE from `start`, holds to `end`, fades out --
-    linearly, where the slides' window() eases."""
-    return window(f, start, end, FADE, ease=None)
-
-
 def _intro_pulse(f, start):
     """0 -> 1 -> 0 once every INTRO_PULSE frames, counted from `start`."""
     return 0.5 - 0.5 * math.cos(2 * math.pi * (f - start) / INTRO_PULSE)
@@ -1693,9 +1687,9 @@ def _intro_pulse(f, start):
 def intro_stac_pulse(f):
     """(glow strength, scale) of STAC at frame f -- a pulse while it is alone
     and again at the close, nothing while the panels are being told."""
-    alone = _intro_window(f, 0, INTRO_STAC_ALONE - FADE)
+    alone = window(f, 0, INTRO_STAC_ALONE - FADE)
     close_at = INTRO_SPANS[-1][1]
-    closing = _intro_window(f, close_at, INTRO_HOLD_END)
+    closing = window(f, close_at, INTRO_HOLD_END)
     lit = max(alone, closing)
     if lit <= 0:
         return 0.0, 1.0
@@ -1780,16 +1774,16 @@ def intro_svg(f):
 
     for (side, heading, items), (start, end, bullets) in zip(INTRO_PANELS,
                                                              INTRO_SPANS):
-        shown = _intro_window(f, start, INTRO_HOLD_END)
+        shown = window(f, start, INTRO_HOLD_END)
         if shown <= 0:
             continue
         x, y, w, h = L.intro_panel(side)
         # The highlight is the panel being told; it moves on with the story.
-        parts.append(halo(x, y, w, h, strength=_intro_window(f, start, end)))
+        parts.append(halo(x, y, w, h, strength=window(f, start, end)))
         out = [box(x, y, w, h, INTRO_FILL)]
         for j, lx, ly, s, size, weight, ticked in intro_layout(side, heading,
                                                                items):
-            a = 1.0 if j < 0 else _intro_window(f, bullets[j], INTRO_HOLD_END)
+            a = 1.0 if j < 0 else window(f, bullets[j], INTRO_HOLD_END)
             if a <= 0:
                 continue
             out.append(text(lx, ly, s, size, weight=weight, opacity=a))

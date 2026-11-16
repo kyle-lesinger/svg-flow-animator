@@ -45,9 +45,9 @@ class Stage:
         return min(1.0, (f - self.start) / float(self.dur))
 
     def alpha(self, f, fade=7):
-        """Callout opacity, with a fade in before and a fade out after."""
+        """Callout opacity, eased in before the stage and out after its hold."""
         return window(f, self.start - fade, self.start + self.dur + self.hold,
-                      fade, ease=None)
+                      fade)
 
     def __repr__(self):
         return f"<Stage {self.key} {self.start}..{self.start + self.dur}>"
