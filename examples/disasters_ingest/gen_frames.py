@@ -10,6 +10,7 @@ Stdlib only (no Pillow on this machine); all raster work is shelled out to
 ImageMagick/ffmpeg by build.sh.
 """
 import math
+import multiprocessing
 import os
 import sys
 
@@ -22,7 +23,8 @@ import layout as L
 import overrides as ov
 import rough as R
 from style import S
-from svg_flow_animator.geometry import fit_viewbox
+from svg_flow_animator.geometry import (balanced_wrap, fit_chars, fit_viewbox,
+                                        window)
 
 # journey.py imports this module for its drawing helpers. Run as a script this
 # module is __main__, and that import would load the whole file a SECOND time
@@ -1178,6 +1180,27 @@ def halo(x, y, w, h, strength, rx=8):
     return "\n".join(out)
 
 
+def slide_caption(f, captions, total, rect, key, dy=36, size=15):
+    """
+    A slide's narration band: each of `captions` [(start frame, text)] fades in
+    at its start and gives way just before the next; the last holds to `total`.
+    """
+    out = []
+    for i, (start, s) in enumerate(captions):
+        end = captions[i + 1][0] - FADE - 1 if i + 1 < len(captions) else total + FADE
+        a = window(f, start, end, FADE)
+        if a <= 0:
+            continue
+        x, y, w, h = rect
+        out.append('<g class="caption" opacity="%.3f">' % a
+                   + S.box(x, y, w, h, L.BUBBLE_BG, stroke=L.BUBBLE_BG, rx=12,
+                           sw=1.5, key=(key,))
+                   + text(x + w / 2, y + dy, s, size, fill=L.BUBBLE_FG,
+                          anchor="middle")
+                   + "</g>")
+    return "".join(out)
+
+
 def node_pulse(cx, cy, strength, r=34):
     if strength <= 0.01:
         return ""
@@ -1249,7 +1272,7 @@ def bubble(stage, alpha, view=None):
     # the narrower options were unreachable and the anchor was ignored.
     chosen, best_d = None, None
     for bw in L.BUBBLE_WIDTHS:
-        chars = max(18, int((bw - 2 * pad) / ((fs + FONT_BUMP) * 0.52)))
+        chars = fit_chars(bw - 2 * pad, fs + FONT_BUMP)
         lines = wrap(stage["bubble"], chars)
         bh = len(lines) * lh + 26
         spot = place_bubble((px, py), bw, bh, strict=True, view=view)
@@ -1268,7 +1291,7 @@ def bubble(stage, alpha, view=None):
         # rather than dumping the caption at (40,16), which lands it squarely
         # on the container the stage is highlighting.
         bw = L.BUBBLE_WIDTHS[-1]
-        chars = max(18, int((bw - 2 * pad) / ((fs + FONT_BUMP) * 0.52)))
+        chars = fit_chars(bw - 2 * pad, fs + FONT_BUMP)
         lines = wrap(stage["bubble"], chars)
         bh = len(lines) * lh + 26
         chosen = (place_bubble((px, py), bw, bh), lines, bw, bh)
@@ -1321,17 +1344,8 @@ def bubble(stage, alpha, view=None):
 
 def stage_alpha(stage, f):
     """Bubble opacity: fades in at stage start, out after its hold expires."""
-    s, d = stage["start"], stage["dur"]
-    hold_out = stage["hold"]
-    if f < s - FADE:
-        return 0.0
-    if f < s:
-        return (f - (s - FADE)) / FADE
-    if f <= s + d + hold_out:
-        return 1.0
-    if f <= s + d + hold_out + FADE:
-        return 1.0 - (f - (s + d + hold_out)) / FADE
-    return 0.0
+    return window(f, stage["start"] - FADE,
+                  stage["start"] + stage["dur"] + stage["hold"], FADE, ease=None)
 
 
 def stage_progress(stage, f):
@@ -1666,14 +1680,9 @@ INTRO_TICK = 1.4                # the check mark, scaled with the text
 
 
 def _intro_window(f, start, end):
-    """0..1: fades in over FADE from `start`, holds to `end`, fades out."""
-    if f < start or f > end + FADE:
-        return 0.0
-    if f < start + FADE:
-        return (f - start) / float(FADE)
-    if f <= end:
-        return 1.0
-    return 1.0 - (f - end) / float(FADE)
+    """0..1: fades in over FADE from `start`, holds to `end`, fades out --
+    linearly, where the slides' window() eases."""
+    return window(f, start, end, FADE, ease=None)
 
 
 def _intro_pulse(f, start):
@@ -1718,29 +1727,6 @@ def _intro_timeline():
 INTRO_SPANS, INTRO_HOLD_END, INTRO_TOTAL = _intro_timeline()
 
 
-def _wrap_chars(width, size, bold=False):
-    """
-    How many characters fit `width` at `size`.
-
-    0.48 em, not the 0.52 the caption bubbles use: measured on these panels,
-    Helvetica advances ~0.46 em and the sketch face ~0.39, so 0.52 wrapped a
-    third of the panel away. The sketch font_scale stays in -- its fallback
-    chain ends at faces wider than the one this machine resolves.
-    """
-    em = (size + FONT_BUMP) * S.font_scale * (0.55 if bold else 0.48)
-    return max(12, int(width / em))
-
-
-def _balanced_wrap(s, chars):
-    """Fewest lines that fit, then as even as those lines allow -- a lone word
-    on a second line reads as a mistake on a slide."""
-    lines = wrap(s, chars)
-    while chars > 12 and len(wrap(s, chars - 1)) == len(lines):
-        chars -= 1
-        lines = wrap(s, chars)
-    return lines
-
-
 def intro_layout(side, heading, points):
     """
     Every line of one panel, placed: [(bullet index or -1, x, y, text, size,
@@ -1754,8 +1740,13 @@ def intro_layout(side, heading, points):
               "bold", False)]
     by = y + INTRO_FIRST_Y
     size, lh = INTRO_POINT
+    # 0.48 em, not the 0.52 the caption bubbles use: measured on these panels,
+    # Helvetica advances ~0.46 em and the sketch face ~0.39, so 0.52 wrapped a
+    # third of the panel away. The sketch font_scale stays in -- its fallback
+    # chain ends at faces wider than the one this machine resolves.
+    chars = fit_chars(inner, (size + FONT_BUMP) * S.font_scale, 0.48, floor=12)
     for j, point in enumerate(points):
-        for k, line in enumerate(_balanced_wrap(point, _wrap_chars(inner, size))):
+        for k, line in enumerate(balanced_wrap(point, chars)):
             lines.append((j, tx, by, line, size, "normal", k == 0))
             by += lh
         by += INTRO_BULLET_GAP
@@ -1870,6 +1861,9 @@ def write_frames(view=None, scope=None, span=None, render=None):
     logo silently missing. So sections are built one at a time through this one
     directory; it is scratch space, and the GIFs are the artefacts worth keeping.
 
+    Frames are written in parallel, in no particular order: each must be a pure
+    function of f (docs/GOTCHAS.md).
+
     Staging happens here rather than in the caller, because a caller that
     forgets gets that same silent failure (docs/GOTCHAS.md).
     """
@@ -1883,10 +1877,23 @@ def write_frames(view=None, scope=None, span=None, render=None):
     # Output numbering restarts at zero regardless of where the span begins:
     # ffmpeg reads f%04d as a contiguous sequence, and a gap at the front makes
     # it silently read nothing at all.
-    for i, f in enumerate(range(first, last + 1)):
-        with open(f"{L.FRAMES}/f{i:04d}.svg", "w", encoding="utf-8") as fh:
-            fh.write(render(f) if render else frame_svg(f, view, scope))
-    return last - first + 1
+    global _RENDER
+    _RENDER = render or (lambda f: frame_svg(f, view, scope))
+    jobs = list(enumerate(range(first, last + 1)))
+    # fork, not spawn: workers inherit this module as loaded, _RENDER included,
+    # rather than importing it again (a closure cannot be pickled to them).
+    with multiprocessing.get_context("fork").Pool() as pool:
+        pool.map(_write_frame, jobs, chunksize=8)
+    return len(jobs)
+
+
+_RENDER = None                  # write_frames' frame function, for its workers
+
+
+def _write_frame(job):
+    i, f = job
+    with open(f"{L.FRAMES}/f{i:04d}.svg", "w", encoding="utf-8") as fh:
+        fh.write(_RENDER(f))
 
 
 def main():

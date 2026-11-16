@@ -67,6 +67,52 @@ class TestEasing(unittest.TestCase):
                 self.assertLess((fn(1.0) - fn(1 - eps)) / eps, 1e-3)
 
 
+class TestRampWindow(unittest.TestCase):
+    def test_ramp_is_exact_outside_its_span(self):
+        for ease in (G.smooth, None):
+            with self.subTest(ease=ease):
+                self.assertEqual(G.ramp(10, 10, 20, ease), 0.0)
+                self.assertEqual(G.ramp(-3, 10, 20, ease), 0.0)
+                self.assertEqual(G.ramp(20, 10, 20, ease), 1.0)
+                self.assertEqual(G.ramp(99, 10, 20, ease), 1.0)
+
+    def test_ramp_eases_by_default_and_is_linear_without(self):
+        self.assertAlmostEqual(G.ramp(15, 10, 20), 0.5)
+        self.assertAlmostEqual(G.ramp(12, 10, 20), G.smooth(0.2))
+        self.assertAlmostEqual(G.ramp(12, 10, 20, ease=None), 0.2)
+
+    def test_window_fades_in_holds_and_fades_out(self):
+        self.assertEqual(G.window(9, 10, 30), 0.0)
+        self.assertEqual(G.window(17, 10, 30), 1.0)
+        self.assertEqual(G.window(30, 10, 30), 1.0)
+        self.assertEqual(G.window(37, 10, 30), 0.0)
+        self.assertAlmostEqual(G.window(32, 10, 30, fade=4, ease=None), 0.5)
+
+    def test_linear_window_is_the_callout_fade_it_replaced(self):
+        # Stage.alpha and the disasters bubbles delegate here: the frames they
+        # draw must not move by a byte.
+        def old(f, s, e, fade):
+            if f < s - fade or f > e + fade:
+                return 0.0
+            if f < s:
+                return (f - (s - fade)) / float(fade)
+            if f <= e:
+                return 1.0
+            return 1.0 - (f - e) / float(fade)
+        for s, e, fade in ((10, 40, 7), (0, 0, 4), (5, 6, 7)):
+            for f in range(-10, 60):
+                with self.subTest(s=s, e=e, fade=fade, f=f):
+                    self.assertEqual(G.window(f, s - fade, e, fade, ease=None),
+                                     old(f, s, e, fade))
+
+    def test_hash01_is_stable_and_in_unit_interval(self):
+        vals = [G.hash01(i, salt) for i in range(200) for salt in (1, 2)]
+        self.assertTrue(all(0.0 <= v < 1.0 for v in vals))
+        self.assertEqual(G.hash01(7, 1), G.hash01(7, 1))
+        self.assertNotEqual(G.hash01(7, 1), G.hash01(7, 2))
+        self.assertGreater(len(set(round(v, 6) for v in vals)), 390)
+
+
 # =============================================================== polyline ===
 class TestPolyline(unittest.TestCase):
     L = [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0)]
@@ -128,6 +174,28 @@ class TestLabelWidth(unittest.TestCase):
         self.assertEqual(G.label_width("", 14), 0.0)
         self.assertGreater(G.label_width("abcd", 20), G.label_width("abcd", 10))
 
+    def test_fit_chars_inverts_label_width(self):
+        for width, size, ratio in ((400, 15, 0.52), (300, 22.4, 0.48), (1000, 19, 0.52)):
+            with self.subTest(width=width, size=size, ratio=ratio):
+                n = G.fit_chars(width, size, ratio, floor=1)
+                self.assertLessEqual(G.label_width("x" * n, size, ratio), width)
+                self.assertGreater(G.label_width("x" * (n + 1), size, ratio), width)
+
+    def test_fit_chars_never_drops_below_its_floor(self):
+        self.assertEqual(G.fit_chars(10, 20), 18)
+        self.assertEqual(G.fit_chars(10, 20, floor=12), 12)
+
+
+class TestCubic(unittest.TestCase):
+    def test_hits_its_endpoints(self):
+        p0, c1, c2, p1 = (0, 0), (40, 0), (60, 100), (100, 100)
+        self.assertEqual(G.cubic(p0, c1, c2, p1, 0), p0)
+        self.assertEqual(G.cubic(p0, c1, c2, p1, 1), p1)
+
+    def test_collinear_controls_give_a_straight_line(self):
+        x, y = G.cubic((0, 0), (10, 10), (20, 20), (30, 30), 0.37)
+        self.assertAlmostEqual(x, y)
+
 
 # =================================================================== wrap ===
 class TestWrap(unittest.TestCase):
@@ -152,6 +220,23 @@ class TestWrap(unittest.TestCase):
     def test_exact_fit_boundary(self):
         self.assertEqual(G.wrap("ab cd", 5), ["ab cd"])
         self.assertEqual(G.wrap("ab cd", 4), ["ab", "cd"])
+
+    def test_balanced_wrap_keeps_the_line_count_and_evens_the_lines(self):
+        text = "Search any STAC catalog with the same API, anywhere"
+        for width in (20, 30, 45):
+            with self.subTest(width=width):
+                plain, even = G.wrap(text, width), G.balanced_wrap(text, width)
+                self.assertEqual(len(even), len(plain))
+                self.assertEqual(" ".join(even).split(), text.split())
+                self.assertTrue(all(len(l) <= width for l in even))
+                spread = lambda ls: max(map(len, ls)) - min(map(len, ls))
+                self.assertLessEqual(spread(even), spread(plain))
+
+    def test_balanced_wrap_no_lone_word(self):
+        # wrap() strands "anywhere" on a line of its own at 44 chars
+        text = "Search any STAC catalog with the same API, anywhere"
+        self.assertEqual(G.wrap(text, 44)[-1], "anywhere")
+        self.assertGreater(len(G.balanced_wrap(text, 44)[-1].split()), 1)
 
     def test_word_longer_than_width_is_not_dropped(self):
         self.assertEqual(G.wrap("supercalifragilistic ok", 5),

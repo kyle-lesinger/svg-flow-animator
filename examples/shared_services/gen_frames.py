@@ -30,7 +30,7 @@ import story  # noqa: E402
 from svg_flow_animator import (editor, render, styles, svg,  # noqa: E402
                                timeline)
 from svg_flow_animator import serve as live_server  # noqa: E402
-from svg_flow_animator.geometry import point_at, smooth, wrap  # noqa: E402
+from svg_flow_animator.geometry import fit_chars, point_at, smooth, wrap  # noqa: E402
 
 DEFAULT_STYLE = "sketch"
 os.environ.setdefault("FLOWGIF_STYLE", DEFAULT_STYLE)
@@ -317,7 +317,7 @@ def caption_markup(b, alpha, rect):
     pad = 22
     for size in (22, 20, 18, 16, 14):
         lh = size * 1.32
-        lines = wrap(b["text"], max(18, int((w - 2 * pad) / (size * 0.52))))
+        lines = wrap(b["text"], fit_chars(w - 2 * pad, size))
         block = 22 + len(lines) * lh
         if block <= h - 28:
             break

@@ -28,13 +28,11 @@ import math
 
 import bottleneck as B
 import gen_frames as G
-import globe as GL
 import layout as L
 import story as ST
-import uses as U
 from funnel import Funnel
-from journey import ramp, window
 from style import S
+from svg_flow_animator.geometry import cubic, hash01, ramp, window
 
 FPS, FADE = G.FPS, G.FADE
 WARN, MUTED = B.WARN, B.MUTED
@@ -115,11 +113,7 @@ LEGEND_Y = 700
 PASSES = ST.passes(MAX_TOTAL + 25)
 
 
-def globe_at(f):
-    """The globe for frame f: showcase-sized, gliding, or settled."""
-    t = ramp(f, *GLIDE)
-    cx, cy, r = (BIG[i] + (SMALL[i] - BIG[i]) * t for i in range(3))
-    return GL.Globe(cx, cy, r, 22, -88)
+globe_at = ST.globe_at                     # the story's globe, gliding as it does
 
 
 # -------------------------------------------------------------------- dots ---
@@ -156,7 +150,7 @@ def _emissions():
 
 EMIT = _emissions()
 N = len(EMIT)
-LANE = [MID_Y - LANE_SPREAD + 2 * LANE_SPREAD * ST._hash(i, 1) for i in range(N)]
+LANE = [MID_Y - LANE_SPREAD + 2 * LANE_SPREAD * hash01(i, 1) for i in range(N)]
 SAT = [PASSES[k]["sat"] for _e, k in EMIT]
 COLOR = [ST.SAT_COLOR[s] for s in SAT]
 # Through the neck: (frames, x from, x to, split?). Dwelling at a station is a
@@ -204,7 +198,7 @@ def bend(p0, r, u):
     """u of the way along the bend from p0 (at STAC's edge) to where route r
     runs level into its card."""
     y1 = CARD_MID[r]
-    return U._cubic(p0, (p0[0] + BEND_K, p0[1]), (BEND_X - BEND_K, y1), (BEND_X, y1), u)
+    return cubic(p0, (p0[0] + BEND_K, p0[1]), (BEND_X - BEND_K, y1), (BEND_X, y1), u)
 
 
 def route(r, n=40):
@@ -403,23 +397,6 @@ def _legend(f, out):
     out.append("</g>")
 
 
-def _caption(f):
-    out = []
-    for i, (start, s) in enumerate(CAPTIONS):
-        end = CAPTIONS[i + 1][0] - FADE - 1 if i + 1 < len(CAPTIONS) else TOTAL + FADE
-        a = window(f, start, end)
-        if a <= 0:
-            continue
-        x, y, w, h = CAPTION
-        out.append('<g class="caption" opacity="%.3f">' % a
-                   + S.box(x, y, w, h, L.BUBBLE_BG, stroke=L.BUBBLE_BG, rx=12,
-                           sw=1.5, key=("dcap",))
-                   + G.text(x + w / 2, y + 47, s, CAPTION_SIZE, fill=L.BUBBLE_FG,
-                            anchor="middle")
-                   + "</g>")
-    return "".join(out)
-
-
 def standards_svg(f):
     W, H = L.W, L.H
     out = ['<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" '
@@ -449,6 +426,7 @@ def standards_svg(f):
                           "%d granules waiting" % len(FUNNEL.waiting(f)), 13,
                           fill=WARN, weight="bold",
                           opacity=gone * ramp(f, SQUEEZE, SQUEEZE + FADE)))
-    out.append(_caption(f))
+    out.append(G.slide_caption(f, CAPTIONS, TOTAL, CAPTION, "dcap", dy=47,
+                              size=CAPTION_SIZE))
     out.append("</svg>")
     return "\n".join(out)

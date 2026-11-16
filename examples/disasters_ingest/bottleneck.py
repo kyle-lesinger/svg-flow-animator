@@ -19,8 +19,8 @@ import math
 import gen_frames as G
 import layout as L
 from funnel import Funnel
-from journey import ramp, window
 from style import S
+from svg_flow_animator.geometry import hash01, ramp, window
 
 FPS, FADE = G.FPS, G.FADE
 
@@ -87,16 +87,11 @@ NECK_PATH = ((12, NECK_X, STATIONS[0], False), (24, STATIONS[0], STATIONS[0], Fa
              (18, STATIONS[2], DECIDE_X, True))
 
 
-def _hash(i, salt):
-    h = math.sin(i * 12.9898 + salt * 78.233) * 43758.5453
-    return h - math.floor(h)
-
-
 SPAWN = (list(range(FIRST_SPAWN, OPEN_AT, SPAWN_EVERY))
          + list(range(OPEN_AT, TOTAL)))
 N = len(SPAWN)
-LANE = [MID_Y - 180 + 360 * _hash(i, 1) for i in range(N)]
-COLOR = [DOT_COLORS[int(_hash(i, 2) * len(DOT_COLORS))] for i in range(N)]
+LANE = [MID_Y - 180 + 360 * hash01(i, 1) for i in range(N)]
+COLOR = [DOT_COLORS[int(hash01(i, 2) * len(DOT_COLORS))] for i in range(N)]
 
 FUNNEL = Funnel(SRC_X, MOUTH_X, NECK_X, NECK_END, MID_Y, MOUTH_H, NECK_H, OPEN_H,
                 DECIDE_X, OPEN_AT, MORPH, SPAWN, LANE, NECK_PATH, v=V,
@@ -255,23 +250,6 @@ def bottleneck_svg(f):
                           "%d granules waiting" % q, 13, fill=WARN, weight="bold",
                           opacity=gone * ramp(f, SQUEEZE, SQUEEZE + FADE)))
 
-    out.append(_caption(f))
+    out.append(G.slide_caption(f, CAPTIONS, TOTAL, CAPTION, "bcap"))
     out.append("</svg>")
     return "\n".join(out)
-
-
-def _caption(f):
-    out = []
-    for i, (start, s) in enumerate(CAPTIONS):
-        end = CAPTIONS[i + 1][0] - FADE - 1 if i + 1 < len(CAPTIONS) else TOTAL + FADE
-        a = window(f, start, end)
-        if a <= 0:
-            continue
-        x, y, w, h = CAPTION
-        out.append('<g class="caption" opacity="%.3f">' % a
-                   + S.box(x, y, w, h, L.BUBBLE_BG, stroke=L.BUBBLE_BG, rx=12,
-                           sw=1.5, key=("bcap",))
-                   + G.text(x + w / 2, y + 36, s, 15, fill=L.BUBBLE_FG,
-                            anchor="middle")
-                   + "</g>")
-    return "".join(out)

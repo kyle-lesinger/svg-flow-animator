@@ -200,6 +200,20 @@ diffing rendered frames of a never-animated region; it should be byte-identical.
 
 Corollary: seed a pulsing ring on its centre, not its animating radius.
 
+## Frames are written in parallel: a frame may depend on `f` alone
+
+The disasters `write_frames()` hands frames to a process pool in chunks, so a
+frame is not drawn after the one before it, nor in the same process. State
+carried from frame to frame -- a counter, a "previous position" to smooth from,
+a cache keyed on less than the pixels depend on -- renders correctly in
+sequence and wrongly in parallel, and nothing fails.
+`tests/test_disasters_parallel.py` diffs the two.
+
+Files a frame writes are shared too. The globe rasters render on first use into
+the frames dir, and two workers can reach the same one at once: each writes its
+own temp file (`<name>.<pid>.tmp`) before `os.replace`. With one shared temp
+name their writes interleave into a corrupt PNG.
+
 ## A roughjs outline cannot be filled
 
 It is a set of disjoint subpaths; `fill` on it produces garbage. Draw a clean

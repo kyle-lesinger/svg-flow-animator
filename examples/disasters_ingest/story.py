@@ -25,8 +25,9 @@ import gen_frames as G
 import globe as GL
 import layout as L
 from funnel import Funnel
-from journey import RAMPS, SATS, TEXTURE, ramp, ramp_color, satellite, tag, value, window
+from journey import RAMPS, SATS, TEXTURE, ramp_color, satellite, tag, value
 from style import S
+from svg_flow_animator.geometry import hash01, ramp, window
 
 FPS, FADE = G.FPS, G.FADE
 WARN, MUTED = B.WARN, B.MUTED
@@ -174,11 +175,6 @@ def sat_s(pz, f):
 T_EMIT = 14               # frames a dot takes from the swath to the funnel
 
 
-def _hash(i, salt):
-    h = math.sin(i * 12.9898 + salt * 78.233) * 43758.5453
-    return h - math.floor(h)
-
-
 def _emissions():
     """(emit frame, pass index) for every dot: off the scan line, every few
     frames while a satellite records -- twice as often once the neck is open."""
@@ -196,7 +192,7 @@ def _emissions():
 
 EMIT = _emissions()
 N = len(EMIT)
-LANE = [MID_Y - 170 + 340 * _hash(i, 1) for i in range(N)]
+LANE = [MID_Y - 170 + 340 * hash01(i, 1) for i in range(N)]
 FUNNEL = Funnel(SRC_X, MOUTH_X, NECK_X, NECK_END, MID_Y, MOUTH_H, NECK_H, OPEN_H,
                 DECIDE_X, OPEN_AT, MORPH, [e + T_EMIT for e, _k in EMIT], LANE,
                 ((12, NECK_X, STATIONS[0], False), (22, STATIONS[0], STATIONS[0], False),
@@ -487,23 +483,6 @@ def story_svg(f):
                           "%d granules waiting" % len(FUNNEL.waiting(f)), 13,
                           fill=WARN, weight="bold",
                           opacity=gone * ramp(f, SQUEEZE, SQUEEZE + FADE)))
-    out.append(_caption(f))
+    out.append(G.slide_caption(f, CAPTIONS, TOTAL, CAPTION, "scap"))
     out.append("</svg>")
     return "\n".join(out)
-
-
-def _caption(f):
-    out = []
-    for i, (start, s) in enumerate(CAPTIONS):
-        end = CAPTIONS[i + 1][0] - FADE - 1 if i + 1 < len(CAPTIONS) else TOTAL + FADE
-        a = window(f, start, end)
-        if a <= 0:
-            continue
-        x, y, w, h = CAPTION
-        out.append('<g class="caption" opacity="%.3f">' % a
-                   + S.box(x, y, w, h, L.BUBBLE_BG, stroke=L.BUBBLE_BG, rx=12,
-                           sw=1.5, key=("scap",))
-                   + G.text(x + w / 2, y + 36, s, 15, fill=L.BUBBLE_FG,
-                            anchor="middle")
-                   + "</g>")
-    return "".join(out)

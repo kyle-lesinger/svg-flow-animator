@@ -34,7 +34,7 @@ mode would boil.
 import gen_frames as G
 import infra as I
 import layout as L
-from journey import ramp, window
+from svg_flow_animator.geometry import ramp, window
 from style import S
 
 FPS, FADE = G.FPS, G.FADE

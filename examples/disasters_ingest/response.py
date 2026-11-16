@@ -32,8 +32,8 @@ import globe as GL
 import layout as L
 import story as ST
 import uses as U
-from journey import ramp, window
 from style import S
+from svg_flow_animator.geometry import cubic, hash01, ramp, window
 
 FPS, FADE = G.FPS, G.FADE
 WARN, MUTED = ST.WARN, ST.MUTED
@@ -106,11 +106,6 @@ TRANSIT = (T_EMIT + int(math.ceil((SPLIT_X - ENTRY_X) / V)) + FAN_T
 LAST_EMIT = MAX_TOTAL - 1 - END_HOLD - TRANSIT
 
 
-def _hash(i, salt):
-    h = math.sin(i * 12.9898 + salt * 78.233) * 43758.5453
-    return h - math.floor(h)
-
-
 def _emissions():
     """(emit frame, pass index) for every granule: off the scan line, a few
     times while a satellite records, until the last that can land."""
@@ -123,7 +118,7 @@ def _emissions():
 
 EMIT = _emissions()
 N = len(EMIT)
-LANE = [MID_Y - LANE_SPREAD + 2 * LANE_SPREAD * _hash(i, 1) for i in range(N)]
+LANE = [MID_Y - LANE_SPREAD + 2 * LANE_SPREAD * hash01(i, 1) for i in range(N)]
 SAT = [PASSES[k]["sat"] for _e, k in EMIT]
 COLOR = [ST.SAT_COLOR[s] for s in SAT]
 
@@ -162,7 +157,7 @@ def bend(p0, r, u):
     """u of the way along the bend from p0 (at STAC's edge) to where route r
     runs level into its card."""
     y1 = CARD_MID[r]
-    return U._cubic(p0, (p0[0] + 110, p0[1]), (BEND_X - 110, y1), (BEND_X, y1), u)
+    return cubic(p0, (p0[0] + 110, p0[1]), (BEND_X - 110, y1), (BEND_X, y1), u)
 
 
 def positions(i, f):

@@ -22,7 +22,7 @@ each where it sits in the ecosystem.
 """
 import gen_frames as G
 import layout as L
-from journey import ramp, window
+from svg_flow_animator.geometry import ramp, window
 from style import S
 
 FPS, FADE = G.FPS, G.FADE

@@ -24,8 +24,8 @@ import math
 import gen_frames as G
 import layout as L
 from bottleneck import DOT_COLORS
-from journey import ramp, window
 from style import S
+from svg_flow_animator.geometry import cubic, ramp
 
 FPS, FADE = G.FPS, G.FADE
 
@@ -92,12 +92,6 @@ CAPTIONS = (
 
 
 # ------------------------------------------------------------------ routes ---
-def _cubic(p0, c1, c2, p1, t):
-    u = 1 - t
-    return (u ** 3 * p0[0] + 3 * u * u * t * c1[0] + 3 * u * t * t * c2[0] + t ** 3 * p1[0],
-            u ** 3 * p0[1] + 3 * u * u * t * c1[1] + 3 * u * t * t * c2[1] + t ** 3 * p1[1])
-
-
 def card_rect(r):
     return (CARD_X, CARD_Y[r], CARD_W, CARD_H)
 
@@ -108,7 +102,7 @@ def _fan(r):
     y0 = sy + sh / 2 + (r - (N_ROUTES - 1) / 2.0) * 40
     y1 = LANE_Y[r]
     p0, p1 = (sx + sw, y0), (BEND_X, y1)
-    pts = [_cubic(p0, (p0[0] + 130, y0), (BEND_X - 130, y1), p1, i / 40.0)
+    pts = [cubic(p0, (p0[0] + 130, y0), (BEND_X - 130, y1), p1, i / 40.0)
            for i in range(41)]
     return pts + [(CARD_X, y1)]
 
@@ -576,23 +570,6 @@ def uses_svg(f):
                               fill=WARN, anchor="end", weight="bold",
                               opacity=1 - m))
 
-    out.append(_caption(f))
+    out.append(G.slide_caption(f, CAPTIONS, TOTAL, CAPTION, "ucap", dy=40, size=18))
     out.append("</svg>")
     return "\n".join(out)
-
-
-def _caption(f):
-    out = []
-    for i, (start, s) in enumerate(CAPTIONS):
-        end = CAPTIONS[i + 1][0] - FADE - 1 if i + 1 < len(CAPTIONS) else TOTAL + FADE
-        a = window(f, start, end)
-        if a <= 0:
-            continue
-        x, y, w, h = CAPTION
-        out.append('<g class="caption" opacity="%.3f">' % a
-                   + S.box(x, y, w, h, L.BUBBLE_BG, stroke=L.BUBBLE_BG, rx=12,
-                           sw=1.5, key=("ucap",))
-                   + G.text(x + w / 2, y + 40, s, 18, fill=L.BUBBLE_FG,
-                            anchor="middle")
-                   + "</g>")
-    return "".join(out)
