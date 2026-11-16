@@ -11,7 +11,7 @@ no transform left on it; GitHub, used twice, keeps its tray copy until its
 last trip; no path is drawn until everything is in place, and no "no
 automated data path"; then the legs into STAC draw in before the legs out of
 it, Community's link reaches STAC and is grey, not flow green; it ends on
-everything in place and connected under the three qualities, the tray gone;
+everything in place and connected under the five qualities, the tray gone;
 and the words fit.
 
 Subprocess-run with overrides pinned empty. Needs the gitignored artwork.
@@ -157,7 +157,7 @@ print(json.dumps(dict(
     stac_halo_last=('<g class="link"' in last),
     notes=[f for f, d in docs.items() if has(d, "no automated data path")],
     tray_last=('class="tray"' in last),
-    qualities=[has(last, q) for q in T.QUALITIES],
+    qualities=[has(last, q) for q in T.QUALITIES], n_qualities=len(T.QUALITIES),
     headings=[I.heading(b) in last for b in G.BLOCKS],
     fits=fits, canvas=(L.W, L.H), leaks=dict(first=leaks(first), last=leaks(last)),
 )))
@@ -264,7 +264,8 @@ class ToolkitCase(unittest.TestCase):
         P = self.P
         self.assertEqual(set(P["last_states"].values()), {"placed"})
         self.assertFalse(P["tray_last"], "the tray is still up at the end")
-        self.assertEqual(P["qualities"], [True] * 3)
+        self.assertEqual(P["n_qualities"], 5)
+        self.assertEqual(P["qualities"], [True] * 5)
         self.assertEqual(P["headings"], [True] * 6)
 
     @sup.needs_rsvg

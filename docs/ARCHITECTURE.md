@@ -292,8 +292,9 @@ frames and headings are drawn by the same helpers the diagram itself uses
 `community_item`, `stac_static`, `airflow_static`, `block_box`,
 `block_title`), so each copy lands on its original pixel for pixel -- a test
 checks the markup is identical, and the refactor left every other frame
-byte-identical. It ends on all eight under "Interoperable · Cloud-optimized ·
-Cost-effective".
+byte-identical. It ends on all eight under five qualities: the infra slide's
+"Interoperable · Cloud-optimized · Cost-effective" and "Open-source ·
+Scalable".
 
 Neither slide draws Community's "no automated data path" note
 (`block_title(..., note=False)`, `community_block(note=False)`); the main

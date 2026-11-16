@@ -170,7 +170,8 @@ its own picture on its own timeline, not on `_SPEC`, and each plays once:
   is assembled beneath it section by section -- Data Integration + Funded
   Projects first -- each piece moving down out of the tray to where the
   diagram draws it (GitHub twice: a copy first, the original last); ends on
-  the three qualities where the tray was, while the connections draw
+  five qualities where the tray was (the infra slide's three plus
+  Open-source and Scalable), while the connections draw
   themselves in: the sources' spokes and Funded Projects' push faintly, then
   the legs into STAC one
   after another, each with a pulse as STAC's glow rises, then the legs out

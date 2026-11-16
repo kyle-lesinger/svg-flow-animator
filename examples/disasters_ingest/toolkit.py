@@ -40,7 +40,9 @@ from style import S
 FPS, FADE = G.FPS, G.FADE
 
 TITLE = I.TITLE
-QUALITIES = I.QUALITIES
+# The infra slide's three, and two more the toolkit can claim once it is
+# assembled: five pills across where the tray was.
+QUALITIES = I.QUALITIES + ("Open-source", "Scalable")
 NAMES = dict((k, name) for k, name, _role in I.PIECES)
 # (blocks that appear, pieces that come down into them)
 STEPS = (
