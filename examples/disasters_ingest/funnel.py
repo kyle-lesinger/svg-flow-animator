@@ -14,7 +14,7 @@ Dots enter at `src_x` at their `spawn` frame, on their own `lane`. What they
 look like, and where they were before `src_x`, is the caller's business.
 """
 import gen_frames as G
-from journey import ramp
+from svg_flow_animator.geometry import ramp
 
 
 class Funnel:

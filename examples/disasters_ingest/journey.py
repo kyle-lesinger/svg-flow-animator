@@ -33,6 +33,7 @@ import gen_frames as G
 import globe as GL
 import layout as L
 from style import S
+from svg_flow_animator.geometry import ramp, window
 
 FPS, FADE = G.FPS, G.FADE
 
@@ -146,20 +147,6 @@ CAPTIONS = (
 
 def problem_label(n):
     return "%d satellites · %d formats × 2 tools = %d copies" % (n, n, 2 * n)
-
-
-def ramp(f, a, b):
-    """0 before a, 1 after b, eased between."""
-    if f <= a:
-        return 0.0
-    if f >= b:
-        return 1.0
-    return G.smooth((f - a) / float(b - a))
-
-
-def window(f, a, b):
-    """Fades in over FADE from a, holds, fades out over FADE after b."""
-    return min(ramp(f, a, a + FADE), 1.0 - ramp(f, b, b + FADE))
 
 
 # ---------------------------------------------------------------- the data ---
@@ -499,7 +486,7 @@ def journey_svg(f):
             out.append(satellite(x, y, ang, op, sat["panel"]))
             out.append(tag(x + 26, y - 20, sat["name"], op))
 
-    out.append(_caption(f))
+    out.append(G.slide_caption(f, CAPTIONS, TOTAL, CAPTION, "jcap"))
     out.append("</svg>")
     return "\n".join(out)
 
@@ -653,21 +640,4 @@ def _tool(f, key, title, verb, rect):
         out.append(G.text(x + 22, y + h - 18, "0 copies", 12, fill=L.FLOW,
                           weight="bold", opacity=after))
     out.append("</g>")
-    return "".join(out)
-
-
-def _caption(f):
-    out = []
-    for i, (start, s) in enumerate(CAPTIONS):
-        end = CAPTIONS[i + 1][0] - FADE - 1 if i + 1 < len(CAPTIONS) else TOTAL + FADE
-        a = window(f, start, end)
-        if a <= 0:
-            continue
-        x, y, w, h = CAPTION
-        out.append('<g class="caption" opacity="%.3f">' % a
-                   + S.box(x, y, w, h, L.BUBBLE_BG, stroke=L.BUBBLE_BG, rx=12,
-                           sw=1.5, key=("jcap",))
-                   + G.text(x + w / 2, y + 36, s, 15, fill=L.BUBBLE_FG,
-                            anchor="middle")
-                   + "</g>")
     return "".join(out)

@@ -175,10 +175,11 @@ SOURCES = [
     # matches the EGIS globe by area has to be smaller than the globe's: 56
     # renders 56x47, against the globe's ~50x50 of ink inside its 66 slot.
     {"label": "GIBS Catalog", "kind": "cyl", "logo": "cx.png", "size": 56},
+    # The Earthdata archive is NASA's, and wears the meatball like GIBS.
+    {"label": "Earthdata Archive", "kind": "bucket", "logo": "cx.png", "size": 56},
     # The globe PNG has whitespace padding baked in, so it reads smaller than
     # the drawn icons at the same nominal size. Give it a larger default.
     {"label": "EGIS", "kind": "cyl", "logo": "bJ.png", "size": 66},
-    {"label": "DAAC S3 Bucket",       "kind": "bucket"},
     {"label": "External AWS Bucket",  "kind": "bucket"},
     {"label": "CSDA AWS Bucket",      "kind": "bucket"},
     {"label": "External GIS Catalog", "kind": "bucket"},
@@ -453,7 +454,7 @@ def portal_fan(i):
 # derived from STAC's box instead, so moving STAC in the editor carries them.
 INTRO_MARGIN = 40              # the canvas margin the diagram itself keeps
 INTRO_GAP = 40                 # air between STAC and each panel
-INTRO_PANEL_H = 216            # a heading and three one-line points
+INTRO_PANEL_H = 380            # a heading and three two-line points
 
 
 def intro_panel(side):

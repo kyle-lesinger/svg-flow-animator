@@ -12,7 +12,8 @@ the GIF's inter-frame delta, so generous pauses between beats cost little.
 import math
 
 from . import svg
-from .geometry import (path_len, point_at, poly_d, smooth, place_near, wrap)
+from .geometry import (path_len, point_at, poly_d, smooth, place_near, wrap,
+                       fit_chars, window)
 
 __all__ = ["Stage", "flow", "pulse", "callout"]
 
@@ -45,14 +46,8 @@ class Stage:
 
     def alpha(self, f, fade=7):
         """Callout opacity, with a fade in before and a fade out after."""
-        s, e = self.start, self.start + self.dur + self.hold
-        if f < s - fade or f > e + fade:
-            return 0.0
-        if f < s:
-            return (f - (s - fade)) / float(fade)
-        if f <= e:
-            return 1.0
-        return 1.0 - (f - e) / float(fade)
+        return window(f, self.start - fade, self.start + self.dur + self.hold,
+                      fade, ease=None)
 
     def __repr__(self):
         return f"<Stage {self.key} {self.start}..{self.start + self.dur}>"
@@ -130,7 +125,7 @@ def callout(stage, alpha, obstacles, bounds, width=380, bg="#12243d",
     widths = [width] if isinstance(width, (int, float)) else list(width)
 
     def lay_out(bw):
-        chars = max(18, int((bw - 2 * pad) / (font_size * 0.52)))
+        chars = fit_chars(bw - 2 * pad, font_size)
         lines = wrap(stage.text, chars)
         return lines, len(lines) * line_height + 26
 

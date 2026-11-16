@@ -6,7 +6,9 @@ import os
 import re
 import shutil
 import struct
+import subprocess
 import sys
+import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 import zlib
@@ -150,3 +152,28 @@ _SCRIPT_RE = re.compile(r"<script[^>]*>(.*?)</script>", re.S)
 
 def extract_scripts(html):
     return _SCRIPT_RE.findall(html)
+
+
+# ------------------------------------------------------------- rendering ----
+def ink_extent(element, width, height):
+    """
+    (x0, x1): where the ink of one SVG element falls, drawn alone on a white
+    `width` x `height` canvas by rsvg-convert.
+
+    The stdlib cannot measure a font, and a wrap width is only an estimate of
+    glyph advance -- this is how a test learns where a line of text REALLY
+    ends. Needs rsvg-convert and magick.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        svg, png = os.path.join(d, "el.svg"), os.path.join(d, "el.png")
+        with open(svg, "w") as fh:
+            fh.write('<svg xmlns="http://www.w3.org/2000/svg" width="%d" '
+                     'height="%d"><rect width="100%%" height="100%%" '
+                     'fill="#fff"/>%s</svg>' % (width, height, element))
+        subprocess.run(["rsvg-convert", svg, "-o", png], check=True)
+        box = subprocess.run(["magick", png, "-fuzz", "5%", "-format", "%@",
+                              "info:"], check=True, capture_output=True,
+                             text=True).stdout
+    w, rest = box.split("x", 1)
+    x = int(rest.split("+")[1])
+    return x, x + int(w)

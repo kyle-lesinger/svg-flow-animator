@@ -261,7 +261,7 @@ def flat_png(texture, cache_dir, box):
     out = os.path.join(cache_dir, "flat_%d_%d_%d_%d.png" % (x, y, w, h))
     if not os.path.exists(out):
         os.makedirs(cache_dir, exist_ok=True)
-        tmp = out + ".tmp.png"
+        tmp = "%s.%d.tmp.png" % (out, os.getpid())    # parallel workers: own temp
         subprocess.run(["magick", texture, "-resize", "%dx%d!" % (SRC_W, SRC_H),
                         "-crop", "%dx%d+%d+%d" % (w, h, x, y), "+repage", tmp],
                        check=True, capture_output=True)
@@ -282,7 +282,7 @@ def globe_png(texture, cache_dir, globe):
                 "%s is missing -- the journey slide needs the Blue Marble "
                 "texture (docs/ASSETS.md)" % texture)
         os.makedirs(cache_dir, exist_ok=True)
-        tmp = out + ".tmp"
+        tmp = "%s.%d.tmp" % (out, os.getpid())        # parallel workers: own temp
         render_globe(texture, tmp, globe)
         os.replace(tmp, out)
     return out

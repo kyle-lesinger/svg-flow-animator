@@ -36,7 +36,10 @@ for side, head, items in G.INTRO_PANELS:
     lines = G.intro_layout(side, head, items)
     panels[side] = dict(rect=L.intro_panel(side), head=head,
                         last_baseline=lines[-1][2],
-                        texts=[l[3] for l in lines])
+                        texts=[l[3] for l in lines],
+                        # each line exactly as the slide draws it, to rasterise
+                        elements=[G.text(l[1], l[2], l[3], l[4], weight=l[5])
+                                  for l in lines])
 
 # Each point's first line, checked in the RENDERED frames on either side of
 # its beat -- the timeline numbers alone would agree with themselves.
@@ -50,6 +53,12 @@ for (side, head, pts), (_s, _e, starts) in zip(G.INTRO_PANELS, G.INTRO_SPANS):
                           after=has(G.intro_svg(t + G.FADE), line)))
 
 first, last = G.intro_svg(0), G.intro_svg(G.INTRO_TOTAL - 1)
+
+# STAC's scale in every rendered frame -- the pulse, read off the frames
+def stac_scale(doc):
+    m = re.search(r'class="stac" transform="[^"]*scale\(([0-9.]+)\)', doc)
+    return float(m.group(1)) if m else None
+scales = [stac_scale(G.intro_svg(f)) for f in range(G.INTRO_TOTAL)]
 full = G.intro_svg(G.INTRO_HOLD_END - 1)
 left_only = G.intro_svg(G.INTRO_SPANS[1][0] - 1)
 print(json.dumps(dict(
@@ -57,6 +66,9 @@ print(json.dumps(dict(
     first_section=G.sections()[0][0], span=G.section_span(G.INTRO),
     via_section_frame=G.section_frame(5, G.INTRO) == G.intro_svg(5),
     stac=L.BOX_STAC, canvas=(L.W, L.H), panels=panels, beats=beats,
+    pad=G.INTRO_PAD, scales=scales, alone=G.INTRO_STAC_ALONE,
+    close_at=G.INTRO_SPANS[-1][1],
+    last_glow=G.intro_stac_pulse(G.INTRO_TOTAL - 1)[0],
     first_images=images(first), stac_images=sorted([L.A_STAC, L.A_VEDA]),
     first_has_panel_text=any(has(first, t) for p in panels.values()
                              for t in p["texts"]),
@@ -149,6 +161,37 @@ class IntroCase(unittest.TestCase):
             x, y, w, h = p["rect"]
             self.assertLess(p["last_baseline"] + 10, y + h,
                             "%s panel's last line runs into its floor" % side)
+
+    def test_stac_pulses_at_the_start_and_the_close_and_ends_at_rest(self):
+        # STAC is the focal point. A pulse is a local peak of its scale.
+        sc = self.P["scales"]
+        self.assertNotIn(None, sc, "a frame without STAC's pulse group")
+        peaks = [f for f in range(1, len(sc) - 1)
+                 if sc[f] > 1.01 and sc[f - 1] < sc[f] >= sc[f + 1]]
+        opening = [f for f in peaks if f < self.P["alone"]]
+        closing = [f for f in peaks if f >= self.P["close_at"]]
+        self.assertGreaterEqual(len(opening), 2, "no pulse while STAC is alone")
+        self.assertGreaterEqual(len(closing), 2, "no pulse at the close")
+        self.assertEqual(len(opening) + len(closing), len(peaks),
+                         "STAC pulses while the panels are being told")
+        # it plays once: the frame left on screen is STAC still lit, at rest
+        self.assertAlmostEqual(sc[-1], 1.0, places=3)
+        self.assertGreater(self.P["last_glow"], 0.3)
+
+    @sup.needs_rsvg
+    @sup.needs_magick
+    def test_every_line_fits_its_panel_as_rendered(self):
+        # The wrap width is an estimate of glyph advance, and the heading is
+        # not wrapped at all -- only the rasterised text says whether a line
+        # runs out through the panel's right edge. Each line alone on the
+        # canvas, so its ink box is that line's and nothing else's.
+        cw, ch = self.P["canvas"]
+        for side, p in self.P["panels"].items():
+            x, y, w, h = p["rect"]
+            for s, el in zip(p["texts"], p["elements"]):
+                self.assertLessEqual(
+                    sup.ink_extent(el, cw, ch)[1], x + w - self.P["pad"] // 2,
+                    "%s panel: %r runs past its right edge" % (side, s))
 
     def test_the_panels_clear_stac_and_stay_on_canvas(self):
         sx, sy, sw, sh = self.P["stac"]

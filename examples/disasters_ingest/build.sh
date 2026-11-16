@@ -9,6 +9,8 @@
 #   ./build.sh --section=egis      one section       -> sections/egis.gif
 #   ./build.sh --all-sections      every section     -> sections/*.gif
 #   ./build.sh --list-sections     what is buildable
+#   ./build.sh --poster            the whole ecosystem, still -> sections/ecosystem.png
+#   ./build.sh --poster=infra      a slide's last frame       -> sections/infra.png
 #
 # A section is one labelled box, cropped to the output's aspect ratio and
 # rendered from the SAME timeline -- so it always agrees with the full GIF.
@@ -33,11 +35,13 @@ STYLE="${FLOWGIF_STYLE:-$DEFAULT_STYLE}"
 SECTION=""
 ALL_SECTIONS=0
 POSTER=0
+POSTER_OF=""
 POSITIONAL=""
 for arg in "$@"; do
   case "$arg" in
     --list-sections) python3 "$WD/gen_frames.py" --list-sections; exit 0 ;;
     --poster)        POSTER=1 ;;
+    --poster=*)      POSTER=1; POSTER_OF="${arg#--poster=}" ;;
     --all-sections)  ALL_SECTIONS=1 ;;
     --section=*)     SECTION="${arg#--section=}" ;;
     -h|--help)       sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
@@ -119,7 +123,7 @@ build_one() {
     -loop "$LOOP" "$out"
 
   echo "==> 4/4  verifying"
-  magick identify -format '%n frames, %wx%h\n' "$out" | head -1
+  magick identify -format '%n frames, %wx%h\n' "$out" | sed -n 1p
   # A GIF loops only if it carries the NETSCAPE2.0 extension. Check the file
   # itself: a wrong flag still builds a perfectly good GIF that does the wrong
   # thing, and nothing else would notice.
@@ -131,16 +135,26 @@ build_one() {
     echo "FAIL: $out should loop but plays once"; exit 1
   fi
   [ "$LOOP" = "-1" ] && echo "    plays once" || echo "    loops"
+  # Embedded provenance (NID 1383.155: SI-assisted media carries metadata
+  # saying so). ffmpeg drops -metadata for GIF, so it is written afterwards
+  # and read back from the file.
+  python3 "$WD/gen_frames.py" "--stamp=$out"
   ls -lh "$out" | awk '{print "    size: " $5}'
   echo "    done -> $out"
 }
 
 # The poster is a STILL, so it skips frames, ffmpeg and the GIF entirely.
 if [ "$POSTER" = "1" ]; then
-  SVG=$(python3 "$WD/gen_frames.py" --style="$STYLE" --poster)
+  # --poster is the whole ecosystem; --poster=<slide> is that slide's last
+  # frame, e.g. --poster=infra -> sections/infra.png
+  if [ -n "$POSTER_OF" ]; then
+    SVG=$(python3 "$WD/gen_frames.py" --style="$STYLE" "--poster=$POSTER_OF")
+  else
+    SVG=$(python3 "$WD/gen_frames.py" --style="$STYLE" --poster)
+  fi
   SUFFIX=""
   [ "$STYLE" = "$DEFAULT_STYLE" ] || SUFFIX="-$STYLE"
-  OUT_PNG="$WD/sections/ecosystem${SUFFIX}.png"
+  OUT_PNG="$WD/sections/${POSTER_OF:-ecosystem}${SUFFIX}.png"
   mkdir -p "$(dirname "$OUT_PNG")"
   rsvg-convert -w 3200 -h 1800 -b "$PAPER" -o "$OUT_PNG" "$SVG"
   rm -f "$SVG"
@@ -149,6 +163,7 @@ if [ "$POSTER" = "1" ]; then
   BYTES=$(stat -f%z "$OUT_PNG")
   [ "$BYTES" -gt 400000 ] || { echo "FAIL: poster is only $BYTES bytes -- sprites are probably missing"; exit 1; }
   magick identify -format '    %wx%h\n' "$OUT_PNG"
+  python3 "$WD/gen_frames.py" "--stamp=$OUT_PNG"
   echo "    done -> $OUT_PNG  ($(echo "scale=1; $BYTES/1048576" | bc) MB)"
   exit 0
 fi

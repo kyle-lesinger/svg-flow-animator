@@ -47,6 +47,7 @@ brew install librsvg ffmpeg     # rsvg-convert, ffmpeg
 | `svg` | Element emitters. String-based; frames are write-once |
 | `timeline` | `Stage` objects, flow connectors, pulses, auto-placed callouts |
 | `render` | Parallel rasterisation, GIF and APNG assembly |
+| `provenance` | Embeds a comment in a finished GIF, PNG or APNG, and reads it back |
 | `workflow` | Declared workflow diagrams: reusable components, automatic layout, beat-by-beat animation |
 | `gantt` | A Gantt timeline, animated bar by bar |
 | `gantt_editor` | A browser page for a timeline's dates: drag the bars or type them |
@@ -311,7 +312,44 @@ mostly-static diagram that spends the colour budget where it shows.
 - **[docs/GOTCHAS.md](docs/GOTCHAS.md)** — silent failures, ranked by what they cost
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — module map, the handle registry, timing, placement
 - [docs/DECISIONS.md](docs/DECISIONS.md) — why things are the way they are, including measurements that contradicted the hypothesis
-- [CLAUDE.md](CLAUDE.md) / [.clinerules.md](.clinerules.md) — guidance for AI assistants
+- [CLAUDE.md](CLAUDE.md) / [.clinerules.md](.clinerules.md) — guidance for coding assistants
+
+## SI disclosure
+
+The code in this repository was written with a large language model coding
+assistant (Claude Code, Anthropic) working from the author's direction. The
+author decided what to build, what each diagram shows and says, accepted or
+rejected every change, and verified the result; the assistant wrote most of
+the lines.
+The design notes, the gotchas catalogue and the decisions log record human
+judgement, measured and argued, not generated prose.
+
+No image in this repository was produced by a generative image model. Every
+frame is a deterministic render of hand-described geometry: run the code twice
+and you get the same bytes.
+
+Under NASA's definitions (NID 1383.155) this is **SI-assisted** work: the
+human keeps primary creative direction and editorial control and the SI is
+the tool. Every GIF and PNG the disasters build writes says so in embedded
+metadata (`svg_flow_animator.provenance`). What that means for those outputs,
+and how to apply NASA's "Generated Content" label if a reviewer classifies
+them otherwise, is in
+[examples/disasters_ingest/README.md](examples/disasters_ingest/README.md#labeling-the-output).
+
+Commit history carries no co-author trailers for the assistant by convention;
+this section is the disclosure.
+
+In the wording of NASA's disclosure template:
+
+> **Super Intelligence (SI) Usage Disclosure**
+>
+> This document was created with assistance from Claude Code (Anthropic, Claude
+> Fable 5.1) for writing and refactoring the Python code and tests that
+> generate the animated diagrams, drafting the project documentation, and
+> embedding provenance metadata in the rendered files. The content has been
+> reviewed and edited by Kyle Lesinger. More information on the extent and
+> nature of SI usage is included in this section and in
+> [examples/disasters_ingest/README.md](examples/disasters_ingest/README.md#labeling-the-output).
 
 ## License
 

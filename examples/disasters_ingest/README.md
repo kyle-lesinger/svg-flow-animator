@@ -19,6 +19,12 @@ Needs `rsvg-convert` and `ffmpeg` on PATH. No Python packages.
     ./build.sh --section=journey      # -> sections/journey.gif, problem and fix
     ./build.sh --section=bottleneck   # -> sections/bottleneck.gif, the bottleneck solved
     ./build.sh --section=story        # -> sections/story.gif, the two combined, 45 s
+    ./build.sh --section=standards    # -> sections/standards.gif, one standard, every tool, 40 s
+    ./build.sh --section=uses         # -> sections/uses.gif, data to every audience
+    ./build.sh --section=response     # -> sections/response.gif, the whole network, 15 s
+    ./build.sh --section=infra        # -> sections/infra.gif, the reusable infrastructure
+    ./build.sh --poster=infra         # -> sections/infra.png, the reusable pieces only
+    ./build.sh --section=toolkit      # -> sections/toolkit.gif, the toolkit, assembled
     ./build.sh --section=egis         # -> sections/egis.gif
     ./build.sh --all-sections         # -> sections/*.gif
 
@@ -103,6 +109,58 @@ diagram say something untrue.
 - **TinaCMS is one-way.** Portal Content has no return path to STAC — that
   integration does not exist yet. Do not add one for symmetry.
 
+## Labeling the output
+
+The GIFs and PNGs this builds are NASA external material, so NASA's media
+labeling rules apply to them. The rules, as of October 2026:
+
+- **NID 1383.155** (effective 15 Sep 2025, nominal expiry 15 Sep 2026)
+  distinguishes **SI-generated** media, where the SI contributes substantive
+  creative content, from **SI-assisted** media, where the human keeps primary
+  creative direction and editorial control and the SI is a tool. SI-generated
+  media must be visibly and permanently watermarked and carry embedded
+  metadata. SI-assisted media must carry embedded metadata that says so, but
+  no watermark.
+- **NASA Generative Content Labeling Guidelines** (NP-2025-08-6668-HQ,
+  5 Oct 2026) supplies the watermark: the words GENERATED / CONTENT stacked,
+  white on a black box with a white outline. On landscape media the box spans
+  at least 10% of the image width; on portrait media at least 5% of the
+  height; in every case inset 2.5% from the two nearest edges, in whichever
+  corner obstructs least. The artwork (`SI-Label-Icon.zip`: SVG, PNG, EPS,
+  Illustrator) and overlay templates (`SI-Label-Templates.zip`: 5000 px PNGs
+  per orientation, plus a PowerPoint deck) are on NASA's Unified Visual
+  Communications System SharePoint and the Brand Center. They are **not**
+  checked in here; like the logos, they are NASA's to distribute.
+- Terminology here follows Executive Order 14434 (29 Sep 2026) and NASA's
+  Office of Communications guidance on it; the directive's own text is being
+  updated administratively. Only the current label artwork (October 2026)
+  may be applied to new public content. Any asset in active circulation that
+  carries an earlier label must be re-issued with the current one.
+
+How this diagram was made: the story, the wording, the architecture claims
+above and every nudge in `overrides.json` are the author's. The code that
+draws it was written with a large language model coding assistant. No
+generative image model touched any frame; each one is a deterministic render
+of described geometry, and the logos and screenshots are extracted from NASA's
+own exports. The
+author's reading is that this is **SI-assisted** under NID 1383.155, so the
+output carries no watermark.
+
+Every GIF and PNG the build writes carries that statement as embedded
+metadata, which is what NID 1383.155 asks of SI-assisted media: a GIF
+Comment Extension, or a PNG `tEXt` chunk, written by
+`svg_flow_animator.provenance` after ffmpeg and rsvg-convert finish (ffmpeg
+accepts `-metadata` for these formats and writes nothing). The wording is
+`PROVENANCE` in `gen_frames.py`; `build.sh` reads it back from each file
+before reporting done, and so does
+
+    python3 -c 'from svg_flow_animator import provenance; print(provenance.read("sections/intro.gif"))'
+
+One item stays open: the approval authority decides the category, not the
+author. If a reviewer classifies the GIFs as generated, stamp the label on
+each output at the sizes above and re-release; nothing in the pipeline
+prevents it.
+
 ## Files
 
     edit.sh           launch the editor (start here)
@@ -116,6 +174,11 @@ diagram say something untrue.
     bottleneck.py     the bottleneck slide: a queue behind a neck that opens
     funnel.py         that queue, shared by the bottleneck and story slides
     story.py          globe + formats + bottleneck + automation, in 45 s
+    standards.py      formats to one standard, deployed to PORTAL, MMGIS, ArcGIS, in 40 s
+    uses.py           the uses slide: silos and hand-offs, then one system
+    response.py       the response slide: the whole network, end to end, in 15 s
+    infra.py          the infrastructure slide: the eight reusable pieces, no paths
+    toolkit.py        the toolkit slide: a tray of the eight, moved into place
     style.py          flat vs sketch drawing backends
     rough.py          Excalidraw-style sketchy geometry (roughjs port)
     extract_assets.py re-extract artwork from a source SVG export

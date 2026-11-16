@@ -7,8 +7,9 @@ the whole point is that the package installs with zero dependencies.
 import math
 
 __all__ = [
-    "smooth", "ease_in_out", "seg_lengths", "path_len", "point_at", "poly_d",
-    "label_width", "rects_overlap", "place_near",
+    "smooth", "ease_in_out", "ramp", "window", "hash01", "seg_lengths",
+    "path_len", "point_at", "poly_d", "cubic", "label_width", "fit_chars",
+    "balanced_wrap", "rects_overlap", "place_near",
 ]
 
 
@@ -23,6 +24,28 @@ def ease_in_out(t):
     """Cosine ease. Slightly softer than smoothstep."""
     t = max(0.0, min(1.0, t))
     return 0.5 - 0.5 * math.cos(math.pi * t)
+
+
+def ramp(f, a, b, ease=smooth):
+    """0 at or before frame a, 1 at or after b, eased between. ease=None is linear."""
+    if f <= a:
+        return 0.0
+    if f >= b:
+        return 1.0
+    t = (f - a) / float(b - a)
+    return ease(t) if ease else t
+
+
+def window(f, a, b, fade=7, ease=smooth):
+    """0..1: fades in over `fade` frames from a, holds, fades out over `fade` after b."""
+    return min(ramp(f, a, a + fade, ease), 1.0 - ramp(f, b, b + fade, ease))
+
+
+def hash01(i, salt):
+    """A stable pseudo-random number in [0, 1) for (i, salt). No PRNG state, so
+    the same item lands in the same place on every frame and every run."""
+    h = math.sin(i * 12.9898 + salt * 78.233) * 43758.5453
+    return h - math.floor(h)
 
 
 # ---------------------------------------------------------------- polyline ---
@@ -56,6 +79,13 @@ def poly_d(pts):
     return "M " + " L ".join(f"{x:.2f},{y:.2f}" for x, y in pts)
 
 
+def cubic(p0, c1, c2, p1, t):
+    """The point at t on the cubic Bezier p0 -> p1 with controls c1, c2."""
+    u = 1 - t
+    return (u ** 3 * p0[0] + 3 * u * u * t * c1[0] + 3 * u * t * t * c2[0] + t ** 3 * p1[0],
+            u ** 3 * p0[1] + 3 * u * u * t * c1[1] + 3 * u * t * t * c2[1] + t ** 3 * p1[1])
+
+
 # -------------------------------------------------------------------- text ---
 def label_width(s, size, ratio=0.52):
     """
@@ -66,6 +96,22 @@ def label_width(s, size, ratio=0.52):
     start or how many characters fit on a line, not to typeset anything.
     """
     return len(s) * size * ratio
+
+
+def fit_chars(width, size, ratio=0.52, floor=18):
+    """How many characters fit `width` at `size` -- label_width, inverted.
+    Never fewer than `floor`, so a narrow box wraps rather than shreds."""
+    return max(floor, int(width / (size * ratio)))
+
+
+def balanced_wrap(text, width_chars, floor=12):
+    """Fewest lines that fit, then as even as those lines allow -- a lone word
+    on a second line reads as a mistake on a slide."""
+    lines = wrap(text, width_chars)
+    while width_chars > floor and len(wrap(text, width_chars - 1)) == len(lines):
+        width_chars -= 1
+        lines = wrap(text, width_chars)
+    return lines
 
 
 def wrap(text, width_chars):

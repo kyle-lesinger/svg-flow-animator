@@ -25,8 +25,9 @@ import gen_frames as G
 import globe as GL
 import layout as L
 from funnel import Funnel
-from journey import RAMPS, SATS, TEXTURE, ramp, ramp_color, satellite, tag, value, window
+from journey import RAMPS, SATS, TEXTURE, ramp_color, satellite, tag, value
 from style import S
+from svg_flow_animator.geometry import hash01, ramp, window
 
 FPS, FADE = G.FPS, G.FADE
 WARN, MUTED = B.WARN, B.MUTED
@@ -49,7 +50,7 @@ CAPTIONS = (
               "convert by hand, copy into every tool."),
     (DECISIONS_WAIT, "Decisions wait weeks for the data, so we automated it: "
                      "a cloud-native workflow, end to end."),
-    (OPEN_AT + FIX_BEAT, "Actionable decisions in hours, not weeks."),
+    (OPEN_AT + FIX_BEAT, "GOAL: Actionable decisions in hours, not weeks."),
 )
 STATION_LIT = [(NAME_STATIONS + 22 * k, DECISIONS_WAIT) for k in range(3)]
 
@@ -109,9 +110,11 @@ SPOT_ROWS = 6             # a tasked scene is short along track
 DRIFT = 11                # degrees west per cycle, as successive orbits drift
 
 
-def _passes():
+def passes(total):
+    """Every pass flown in a slide `total` frames long: the cast in turn, each
+    orbit drifting west of the last. The response slide runs the same cast."""
     out, k = [], 0
-    while FIRST_REC + k * PERIOD + REC_LEN < TOTAL - 15:
+    while FIRST_REC + k * PERIOD + REC_LEN < total - 15:
         s = k % len(CAST)
         sat = CAST[s]
         lat, lon = sat["at"]
@@ -150,7 +153,7 @@ def _passes():
     return out
 
 
-PASSES = _passes()
+PASSES = passes(TOTAL)
 
 
 def globe_at(f):
@@ -172,14 +175,9 @@ def sat_s(pz, f):
 T_EMIT = 14               # frames a dot takes from the swath to the funnel
 
 
-def _hash(i, salt):
-    h = math.sin(i * 12.9898 + salt * 78.233) * 43758.5453
-    return h - math.floor(h)
-
-
 def _emissions():
     """(emit frame, pass index) for every dot: off the scan line, every few
-    frames while a satellite records -- every frame once the neck is open."""
+    frames while a satellite records -- twice as often once the neck is open."""
     out = []
     for k, pz in enumerate(PASSES):
         a, b = pz["rec"]
@@ -188,13 +186,13 @@ def _emissions():
         f = a
         while f < b:
             out.append((f, k))
-            f += 2 if f < OPEN_AT else 1
+            f += 4 if f < OPEN_AT else 2       # was 2 / 1: half the dots
     return out
 
 
 EMIT = _emissions()
 N = len(EMIT)
-LANE = [MID_Y - 170 + 340 * _hash(i, 1) for i in range(N)]
+LANE = [MID_Y - 170 + 340 * hash01(i, 1) for i in range(N)]
 FUNNEL = Funnel(SRC_X, MOUTH_X, NECK_X, NECK_END, MID_Y, MOUTH_H, NECK_H, OPEN_H,
                 DECIDE_X, OPEN_AT, MORPH, [e + T_EMIT for e, _k in EMIT], LANE,
                 ((12, NECK_X, STATIONS[0], False), (22, STATIONS[0], STATIONS[0], False),
@@ -207,12 +205,16 @@ FUNNEL = Funnel(SRC_X, MOUTH_X, NECK_X, NECK_END, MID_Y, MOUTH_H, NECK_H, OPEN_H
 
 def scan_point(k, f):
     """Canvas point at the middle of pass k's scan line at frame f."""
-    pz = PASSES[k]
+    return scan_point_on(globe_at(f), PASSES[k], f)
+
+
+def scan_point_on(gl, pz, f):
+    """Where pass pz is scanning at frame f, on globe gl."""
     if pz["spot"]:                # a tasked satellite's data comes from its scene
         s0, s1, u0, u1 = pz["scene"]
-        return globe_at(f).xy(pz["p"].ground((s0 + s1) / 2, (u0 + u1) / 2))[0]
+        return gl.xy(pz["p"].ground((s0 + s1) / 2, (u0 + u1) / 2))[0]
     s = max(pz["p"].s0, min(pz["p"].s1, sat_s(pz, f) or pz["p"].s0))
-    return globe_at(f).xy(pz["p"].track(s))[0]
+    return gl.xy(pz["p"].track(s))[0]
 
 
 def dot_positions(i, f):
@@ -286,18 +288,24 @@ def ring(gl, p, front, op):
 
 
 def _globe(f, out):
-    gl = globe_at(f)
-    flying = [(k, sat_s(pz, f)) for k, pz in enumerate(PASSES)]
+    globe_scene(globe_at(f), PASSES, f, out)
+
+
+def globe_scene(gl, passes, f, out, tags_inward=False):
+    """Globe gl with every swath of `passes` flown so far painted on it, and
+    whichever satellites are overhead at frame f. `tags_inward` keeps a
+    satellite's name over the globe when something sits close to its right."""
+    flying = [(k, sat_s(pz, f)) for k, pz in enumerate(passes)]
     flying = [(k, s) for k, s in flying if s is not None]
     for k, _s in flying:
-        out.append(ring(gl, PASSES[k]["p"], False, 0.5))
+        out.append(ring(gl, passes[k]["p"], False, 0.5))
     href = GL.globe_png(TEXTURE, L.FRAME_ASSETS, GL.Globe(0, 0, BIG[2], 22, -88))
     out.append(G.img(href, gl.cx - gl.r, gl.cy - gl.r, 2 * gl.r, 2 * gl.r,
                      frame=False))
     out.append('<circle cx="%.1f" cy="%.1f" r="%.1f" fill="none" stroke="#9cc4ff" '
                'stroke-width="5" opacity="0.35"/>' % (gl.cx, gl.cy, gl.r + 2))
     # every swath so far stays painted, so coverage builds up as you watch
-    for k, pz in enumerate(PASSES):
+    for k, pz in enumerate(passes):
         a, b = pz["rec"]
         if f < a:
             continue
@@ -319,7 +327,7 @@ def _globe(f, out):
             out.append('<path d="%s" fill="none" stroke="#ffffff" stroke-width="1.8" '
                        'opacity="%.3f"/>' % (_d(ring_pts, True), min(1.0, fade + 0.1)))
     for k, s in flying:
-        pz = PASSES[k]
+        pz = passes[k]
         p, sat = pz["p"], CAST[pz["sat"]]
         a, b = pz["rec"]
         op = min(ramp(f, a - 6, a - 1), 1.0 - ramp(f, b + 2, b + 8))
@@ -342,8 +350,11 @@ def _globe(f, out):
             (x2, y2), _ = gl.xy(p.sat(s + 0.02, ALT))
             ang = math.degrees(math.atan2(y2 - y, x2 - x)) + 90
             out.append(satellite(x, y, ang, op, sat["panel"]))
-            out.append(tag(x + 26, y - 20, "%s · %s" % (sat["name"], sat["fmt"]),
-                           op))
+            name = "%s · %s" % (sat["name"], sat["fmt"])
+            tx = x + 26
+            if tags_inward and x > gl.cx:
+                tx = x - 26 - (len(name) * 7.2 + 18)       # tag()'s own width
+            out.append(tag(tx, y - 20, name, op))
 
 
 def _pipeline(f, out):
@@ -472,23 +483,6 @@ def story_svg(f):
                           "%d granules waiting" % len(FUNNEL.waiting(f)), 13,
                           fill=WARN, weight="bold",
                           opacity=gone * ramp(f, SQUEEZE, SQUEEZE + FADE)))
-    out.append(_caption(f))
+    out.append(G.slide_caption(f, CAPTIONS, TOTAL, CAPTION, "scap"))
     out.append("</svg>")
     return "\n".join(out)
-
-
-def _caption(f):
-    out = []
-    for i, (start, s) in enumerate(CAPTIONS):
-        end = CAPTIONS[i + 1][0] - FADE - 1 if i + 1 < len(CAPTIONS) else TOTAL + FADE
-        a = window(f, start, end)
-        if a <= 0:
-            continue
-        x, y, w, h = CAPTION
-        out.append('<g class="caption" opacity="%.3f">' % a
-                   + S.box(x, y, w, h, L.BUBBLE_BG, stroke=L.BUBBLE_BG, rx=12,
-                           sw=1.5, key=("scap",))
-                   + G.text(x + w / 2, y + 36, s, 15, fill=L.BUBBLE_FG,
-                            anchor="middle")
-                   + "</g>")
-    return "".join(out)

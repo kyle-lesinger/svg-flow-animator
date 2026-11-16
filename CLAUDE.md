@@ -32,6 +32,7 @@ svg_flow_animator/     the reusable package
   editor.py            generates a browser editor from that registry
   serve.py             live-preview server behind an editor (/render, /save)
   render.py            parallel rasterisation, GIF / APNG assembly, export()
+  provenance.py        embed a comment in a finished GIF / PNG / APNG, read it back
   workflow.py          declared workflow diagrams: components, auto-layout, beats
   gantt.py             Gantt timeline, animated bar by bar
   gantt_editor.py      browser page for a timeline's dates (schedule.json)
@@ -51,7 +52,7 @@ an example calling `editor.build(...)`.
 ## Run / verify
 
 ```bash
-python3 tests/run.py                                 # 459 tests, ~11s
+python3 tests/run.py                                 # 613 tests, ~1 min
 python3 examples/minimal/demo.py                     # full pipeline, ~360 frames
 python3 examples/minimal/demo.py --style=sketch      # hand-drawn variant
 python3 -m compileall svg_flow_animator examples     # syntax
@@ -95,9 +96,15 @@ That build also emits one GIF per chapter, plus a still of the whole thing:
 ./build.sh --section=journey   # -> sections/journey.gif, problem and fix
 ./build.sh --section=bottleneck  # -> sections/bottleneck.gif, the bottleneck solved
 ./build.sh --section=story     # -> sections/story.gif, the two combined, 45 s
+./build.sh --section=standards # -> sections/standards.gif, one standard, every tool, 40 s
+./build.sh --section=uses      # -> sections/uses.gif, data to every audience
+./build.sh --section=response  # -> sections/response.gif, the whole network, 15 s
+./build.sh --section=infra     # -> sections/infra.gif, the reusable infrastructure
+./build.sh --section=toolkit   # -> sections/toolkit.gif, the toolkit, assembled
 ./build.sh --section=egis      # -> sections/egis.gif
 ./build.sh --all-sections
 ./build.sh --poster            # -> sections/ecosystem.png, 3200x1800
+./build.sh --poster=infra      # -> sections/infra.png, a slide's last frame
 ```
 
 **Sketch is the default style** here; `FLOWGIF_STYLE=flat` gets the clean
@@ -112,7 +119,7 @@ The exceptions are the opening **slides** (`slides()` in `gen_frames.py`), each
 its own picture on its own timeline, not on `_SPEC`, and each plays once:
 
 - `intro`: STAC alone, then a benefits panel either side of it (`intro_svg`,
-  `INTRO_PANELS` for the wording).
+  `INTRO_PANELS` for the wording). STAC pulses at the start and the close.
 - `journey`: a satellite paints a swath on a Blue Marble globe; copying each
   dataset into every tool multiplies; then store once, index in STAC, read in
   place (`journey.py`, globe maths and raster in `globe.py`). It needs
@@ -125,6 +132,54 @@ its own picture on its own timeline, not on `_SPEC`, and each plays once:
   globe, a shape per data format (incl. a CSDA commercial SAR, Umbra), the
   manual bottleneck, then automated ingest
   to a cloud-optimized format, STAC and web apps (`story.py`).
+- `standards`: the story's picture told for its technical qualities, in
+  40 s -- inconsistent formats (a shape per format), a short manual
+  bottleneck (8 s), then scalable cloud-native ingest to one standard,
+  stored once, indexed in STAC (open standard, interoperable); from STAC's
+  edge every granule fans out as one copy per application -- PORTAL,
+  MMGIS, ArcGIS -- as cards on the right that read "reads STAC directly".
+  There is no Web apps column: the apps are the destinations. A manual
+  copy keeps its format shape all the way to the cards (`standards.py`).
+- `uses`: what the data is for -- a web dashboard, an analysis tool, a news
+  or event article, a lesson. Before STAC each app is its own silo (own copy,
+  own lane, own schedule) with a person doing the hand-off by hand; then one
+  system -- STAC, the single source of truth, and one editor (TinaCMS) --
+  gathers the copies, the lanes bend into one fan out of it, the four
+  hand-offs become one person at one editor, and every app shows the same
+  data (`uses.py`, ~26 s). It says *simplified*, never automated.
+- `response`: the whole network, end to end, in 15 s, no caption -- the
+  story's globe and cast on the left, automated ingest, cloud storage and
+  STAC (with TinaCMS, the one editor) across the middle, five destinations on
+  the right (the uses slide's
+  four pages and "Other tools & APIs": STAC API, pull don't copy,
+  interoperable), and beside them the people: Disasters community, decision
+  makers, emergency managers, responders, "act in hours, not weeks". A
+  granule keeps its satellite's shape until ingest, is a circle from there,
+  leaves STAC as one copy per destination and pulses on to the people. Only
+  a few granules per pass, so each can be followed (`response.py`).
+- `infra`: the whole ecosystem with no data paths, quietened (block headings
+  stay crisp), and the eight pieces of reusable cyberinfrastructure (Ingest
+  UI, Airflow, STAC, JupyterHub, TinaCMS, MyST Docs, Grafana, GitHub) brought
+  forward one at a time, each named; it ends on all eight under
+  "Interoperable · Cloud-optimized · Cost-effective" (`infra.py`, 29.4 s).
+  Its PNG (`--poster=infra`, `poster_svg`) is only the blocks' frames and
+  headings and the eight pieces. Each piece, frame and heading is drawn by the
+  same `gen_frames` helper the diagram uses (`ingest_ui`, `block_title`, ...).
+  Community's "no automated data path" note is left out (`note=False`).
+- `toolkit`: the same eight in a tray across the top; the ecosystem (at ~82%)
+  is assembled beneath it section by section -- Data Integration + Funded
+  Projects first -- each piece moving down out of the tray to where the
+  diagram draws it (GitHub twice: a copy first, the original last); ends on
+  five qualities where the tray was (the infra slide's three plus
+  Open-source and Scalable), while the connections draw
+  themselves in: the sources' spokes and Funded Projects' push faintly, then
+  the legs into STAC one
+  after another, each with a pulse as STAC's glow rises, then the legs out
+  and the Portal fan faintly, then one grey link from
+  Community's MyST Docs, GitHub and Grafana up into STAC, "docs · code ·
+  metrics": engagement, not a data path (`toolkit.py`, 30 s). Sections are
+  drawn one at a time by `egis_block`, `processing_block`, `portal_block`,
+  `community_block`, which `context_boxes` is now built from.
 
 ## Critical constraints
 
