@@ -178,7 +178,12 @@ SOURCES = [
     # The globe PNG has whitespace padding baked in, so it reads smaller than
     # the drawn icons at the same nominal size. Give it a larger default.
     {"label": "EGIS", "kind": "cyl", "logo": "bJ.png", "size": 66},
-    {"label": "DAAC S3 Bucket",       "kind": "bucket"},
+    # The Earthdata archive wears the NASA Earthdata lockup (earthdata.png,
+    # see docs/ASSETS.md), which is wide: `size` is its WIDTH and `aspect`
+    # its width over height, so the wordmark stays legible. `dx` nudges it
+    # right of the arc so the lockup clears the block's left edge.
+    {"label": "Earthdata Archive", "kind": "bucket", "logo": "earthdata.png",
+     "size": 132, "aspect": 1240 / 188.0, "dx": 14},
     {"label": "External AWS Bucket",  "kind": "bucket"},
     {"label": "CSDA AWS Bucket",      "kind": "bucket"},
     {"label": "External GIS Catalog", "kind": "bucket"},
@@ -197,7 +202,9 @@ for _i, _s in enumerate(SOURCES):
     # Size first: the point declares it so the editor can offer a resize grip.
     _s["size"] = ov.scalar("src.size.%d" % _i, _s.get("size", SRC_ICON_W),
                            _s["label"] + " size")
-    _s["c"] = ov.point("src.%d" % _i, _arc_default(_i), _s["label"],
+    _dx = _s.get("dx", 0)
+    _s["c"] = ov.point("src.%d" % _i, (_arc_default(_i)[0] + _dx, _arc_default(_i)[1]),
+                       _s["label"],
                        size_key="src.size.%d" % _i)
     # Stored as an OFFSET from the icon, so the label always travels with its
     # node and what you tune is the gap, not an absolute position.
@@ -285,11 +292,18 @@ def label_width(s, size=16.5):
 def spoke_start(idx):
     """Leave the icon's edge along the line toward the hub, so every spoke
     radiates out of its own node rather than starting in blank space."""
-    cx, cy = SOURCES[idx]["c"]
+    src = SOURCES[idx]
+    cx, cy = src["c"]
     dx, dy = HUB[0] - cx, HUB[1] - cy
     d = math.hypot(dx, dy) or 1.0
+    ux, uy = dx / d, dy / d
+    if src.get("aspect"):
+        # a wide mark: leave from the middle of its hub-side end, not from a
+        # circle the size of a bucket, or the spoke starts on top of the
+        # wordmark
+        return (cx + math.copysign(src["size"] / 2.0 + 8, dx), cy)
     r = SRC_ICON_W / 2 + 8
-    return (cx + dx / d * r, cy + dy / d * r)
+    return (cx + ux * r, cy + uy * r)
 
 
 def spoke(idx):

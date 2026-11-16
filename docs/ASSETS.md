@@ -95,6 +95,24 @@ The others are rasterised, because `img()` emits `<image href>`.
 
 ## What is not in the export at all
 
+`earthdata.png` — the NASA Earthdata lockup (meatball + blue EARTHDATA
+wordmark) worn by the Earthdata Archive source in Data Integration. The
+export has no plain Earthdata mark (`cy.png` is the VEDA one), so it is
+composed from the meatball already recovered (`cx.png`) and the blue
+wordmark shipped in NASA's 2026 Earthdata slide template (`ppt/media/`,
+the 1519x249 PNG of "EARTHDATA" alone):
+
+```bash
+magick wordmark.png -trim +repage -resize x120 word.png
+magick assets/cx.png -trim +repage -resize x176 ball.png
+magick -size 1240x188 xc:none ball.png -geometry +6+6 -composite \
+       word.png -geometry +260+34 -composite +repage assets/earthdata.png
+```
+
+1240x188, transparent. `layout.SOURCES` declares that aspect so the mark is
+drawn wide rather than squeezed into a bucket-sized square.
+
+
 `disasters.png` — the NASA Disasters spiral, worn by the three Disasters slots
 in Funded Projects & Partners. It is not in the Lucidchart export in any form,
 so it is fetched rather than recovered:

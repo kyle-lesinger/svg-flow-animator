@@ -68,8 +68,8 @@ def community_item_c(i):
 _SPEC = [
     ("sources", 60,
      "Data arrives from many different locations \u2014 GIBS and EGIS catalogs, "
-     "DAAC and CSDA buckets, external AWS and GIS sources, and the "
-     "NASA Disasters AWS bucket.",
+     "the Earthdata archive, the CSDA bucket, external AWS and GIS sources, "
+     "and the NASA Disasters AWS bucket.",
      (150, 450)),
     ("ingest", 30,
      "Every source converges on the VEDA Ingest UI, a single front door for "
@@ -710,8 +710,10 @@ def source_icon(src, cx, cy, size=None):
     if src["kind"] == "disasters":
         return disasters_bucket(cx, cy, w=sz, h=sz - 2)
     if src.get("logo"):
+        # a wide lockup declares its aspect; `size` is then its width
+        w, h = (sz, sz / src["aspect"]) if src.get("aspect") else (sz, sz)
         return img(L.FRAME_ASSETS + "/" + src["logo"],
-                   cx - sz / 2, cy - sz / 2, sz, sz)
+                   cx - w / 2, cy - h / 2, w, h)
     if src["kind"] == "cyl":
         return cylinder(cx, cy, w=sz, h=sz)
     return bucket(cx, cy, w=sz, h=sz - 2)
