@@ -710,10 +710,8 @@ def source_icon(src, cx, cy, size=None):
     if src["kind"] == "disasters":
         return disasters_bucket(cx, cy, w=sz, h=sz - 2)
     if src.get("logo"):
-        # a wide lockup declares its aspect; `size` is then its width
-        w, h = (sz, sz / src["aspect"]) if src.get("aspect") else (sz, sz)
         return img(L.FRAME_ASSETS + "/" + src["logo"],
-                   cx - w / 2, cy - h / 2, w, h)
+                   cx - sz / 2, cy - sz / 2, sz, sz)
     if src["kind"] == "cyl":
         return cylinder(cx, cy, w=sz, h=sz)
     return bucket(cx, cy, w=sz, h=sz - 2)
